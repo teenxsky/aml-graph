@@ -1,0 +1,63 @@
+ARG PYTHON_VERSION=3.14.3
+ARG NODE_VERSION=24.15.0
+
+
+# ========================= Python App (BASE) =========================
+FROM --platform=linux/amd64 python:${PYTHON_VERSION}-slim AS base-backend
+WORKDIR /app
+
+# Python / PIP
+ENV PYTHONFAULTHANDLER=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100
+
+# Установка uv
+RUN pip install --no-cache-dir uv
+
+
+# ========================= Python App =========================
+FROM base-backend AS backend
+WORKDIR /app
+
+# Копируем только зависимости (для кеша слоёв)
+COPY backend/pyproject.toml \
+     backend/uv.lock \
+     ./
+
+# Установка зависимостей (без проекта)
+RUN apt-get update && apt-get install -y \
+    cmake
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# Копируем код
+COPY ./backend .
+
+# Устанавливаем сам проект
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+ENTRYPOINT ["uv run python -m src.main"]
+
+
+# ========================= Frontend App =========================
+FROM node:${NODE_VERSION}-slim AS frontend
+WORKDIR /app
+
+COPY frontend/package.json \
+     frontend/package-lock.json \
+     frontend/next.config.ts \
+     frontend/tsconfig.json \
+     frontend/postcss.config.mjs \
+     frontend/.npmrc \
+     frontend/.nvmrc \
+     .env.example \
+     ./
+
+RUN npm ci
+
+COPY ./frontend ./
