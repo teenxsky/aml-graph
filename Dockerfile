@@ -27,10 +27,6 @@ COPY backend/pyproject.toml \
      backend/uv.lock \
      ./
 
-# Установка зависимостей (без проекта)
-RUN apt-get update && apt-get install -y \
-    cmake
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project
 
@@ -41,7 +37,7 @@ COPY ./backend .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
-ENTRYPOINT ["uv run python -m src.main"]
+ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
 
 
 # ========================= Frontend App =========================
