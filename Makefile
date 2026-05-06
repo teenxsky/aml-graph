@@ -4,10 +4,10 @@ COMPOSE = docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
 
 # Если DOCKER=1, то работаем через docker compose
 ifeq ($(DOCKER),1)
-	BACKEND_CMD = $(COMPOSE) exec backend poetry run
+	BACKEND_CMD = $(COMPOSE) exec backend uv run
 	FRONTEND_CMD = $(COMPOSE) exec frontend
 else
-	BACKEND_CMD = cd backend && poetry run
+	BACKEND_CMD = cd backend && uv run
 	FRONTEND_CMD = cd frontend &&
 endif
 
@@ -57,20 +57,6 @@ install-backend: ## Установить backend зависимости
 .PHONY: install-frontend
 install-frontend: ## Установить frontend зависимости
 	@$(FRONTEND_CMD) npm ci
-
-.PHONY: generate-migration
-generate-migration: ## Сгенерировать миграцию на основе актуальных моделей
-	@$(BACKEND_CMD) sh -c 'read -p "Введите сообщение миграции: " message && \
-					poetry run alembic revision --autogenerate -m "$$message"'
-
-.PHONY: create-migration
-create-migration: ## Создать чистую (пустую) миграцию
-	@$(BACKEND_CMD) sh -c 'read -p "Введите сообщение миграции: " message && \
-					poetry run alembic revision -m "$$message"'
-
-.PHONY: migrate
-migrate: ## Запустить процесс миграции БД
-	@$(BACKEND_CMD) poetry run alembic upgrade head
 
 
 #--------------- КОМАНДЫ ДЛЯ КОД-СТИЛЯ ---------------#
