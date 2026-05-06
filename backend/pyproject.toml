@@ -1,0 +1,24 @@
+[project]
+name = "aml-graph-core"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "dishka>=1.10.1",
+    "fa>=1.0.11",
+    "fastapi>=0.136.1",
+    "networkx>=3.6.1",
+    "numpy>=2.4.4",
+    "pandas>=3.0.2",
+    "pydantic-settings>=2.14.0",
+    "pydantic[all]>=2.13.3",
+    "sse-starlette>=3.4.1",
+    "uvicorn>=0.46.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.12",
+    "ty>=0.0.34",
+]
