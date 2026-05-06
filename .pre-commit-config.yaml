@@ -1,0 +1,48 @@
+repos:
+  # ===== Общие проверки =====
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-added-large-files
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: local
+    hooks:
+      # ===== Backend (Python) =====
+      - id: local-ruff-check
+        name: ruff check (backend)
+        entry: bash -c 'cd backend && poetry run ruff check . --force-exclude --fix --exit-non-zero-on-fix'
+        require_serial: true
+        language: system
+        types: [ python ]
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      - id: local-ruff-format
+        name: ruff format (backend)
+        entry: bash -c 'cd backend && poetry run ruff format . --force-exclude'
+        require_serial: true
+        language: system
+        types: [ python ]
+        pass_filenames: false
+        files: ^backend/.*\.py$
+
+      # ===== Frontend (JS/TS/Vue) =====
+      - id: local-prettier-check
+        name: prettier check (frontend)
+        entry: bash -c 'cd frontend && npm run prettier-check'
+        require_serial: true
+        language: system
+        types_or: [ vue, javascript, ts, tsx ]
+        pass_filenames: false
+        files: ^frontend/
+
+      - id: local-prettier-format
+        name: prettier format (frontend)
+        entry: bash -c 'cd frontend && npm run prettier-fix'
+        require_serial: true
+        language: system
+        types_or: [ vue, javascript, ts, css, scss, json, yaml, markdown ]
+        pass_filenames: false
+        files: ^frontend/
