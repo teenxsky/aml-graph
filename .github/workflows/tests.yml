@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-code:
+    runs-on: ubuntu-latest
+
+    env:
+      USE_MIRROR: "true"
+      DOCKER_DRIVER: overlay2
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare environment
+        run: |
+          make env
+          echo "USE_MIRROR=${USE_MIRROR}" >> .env
+
+      - name: Start services
+        run: make up
+
+      - name: Run linters
+        run: |
+          make ruff-check DOCKER=1
+          make ty-check DOCKER=1
+          make prettier-check DOCKER=1
+          make eslint-check DOCKER=1
+
+      - name: Cleanup
+        if: always()
+        run: make clean
