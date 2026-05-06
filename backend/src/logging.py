@@ -1,7 +1,5 @@
-import json
 import logging
 import sys
-from collections.abc import Mapping
 from datetime import datetime
 from logging.config import dictConfig
 from typing import Any, Final
@@ -11,40 +9,6 @@ from src.settings import settings
 from src.shared.enums import LogLevelEnum
 
 __all__ = ['setup_logger', 'get_logging_config']
-
-
-class JsonFormatter(logging.Formatter):
-    """JSON formatter для production логов."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        """
-        Форматирует лог-запись в JSON.
-
-        :param record: Лог-запись
-        :return: JSON строка с данными лога
-        """
-        tz = ZoneInfo(settings.app.tz)
-        timestamp = datetime.fromtimestamp(record.created, tz=tz)
-
-        log_data = {
-            'time': timestamp.isoformat(),
-            'level': record.levelname,
-            'message': record.getMessage(),
-            'name': record.name,
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
-        }
-
-        if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
-
-        extra = getattr(record, 'extra', None)
-
-        if isinstance(extra, Mapping):
-            log_data.update(extra)
-
-        return json.dumps(log_data, ensure_ascii=False)
 
 
 class LineFormatter(logging.Formatter):
