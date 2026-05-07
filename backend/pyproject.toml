@@ -6,19 +6,27 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "dishka>=1.10.1",
-    "fa>=1.0.11",
-    "fastapi>=0.136.1",
+    "fastapi[standard]>=0.136.1",
     "networkx>=3.6.1",
     "numpy>=2.4.4",
     "pandas>=3.0.2",
     "pydantic-settings>=2.14.0",
     "pydantic[all]>=2.13.3",
+    "python-multipart>=0.0.20",
     "sse-starlette>=3.4.1",
     "uvicorn>=0.46.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
     "ruff>=0.15.12",
     "ty>=0.0.34",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
