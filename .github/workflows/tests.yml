@@ -29,6 +29,7 @@ jobs:
       - name: Start services
         run: make up
 
+
       - name: Run linters
         run: |
           make ruff-check DOCKER=1
