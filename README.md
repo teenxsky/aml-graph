@@ -153,12 +153,12 @@ risk_score = σ(0.25 * degree + 0.40 * cycle_flag + 0.20 * balance_deviation + 0
 
 ## В работе / ближайший приоритет (MVP — 7–11 мая)
 
-- [ ] Создание монорепозитория (backend + frontend)
-- [ ] CSV Upload API (`/api/upload`) + парсинг через pandas
-- [ ] Column Mapper (backend + frontend)
+- [x] Создание монорепозитория (backend + frontend)
+- [x] CSV Upload API (`/api/upload`) + парсинг через pandas
+- [x] Column Mapper (backend + frontend)
 - [ ] Построение графа через NetworkX (DiGraph)
 - [ ] Session storage (in-memory, UUID)
-- [ ] SSE поток (`/api/stream`) с chunked graph delivery
+- [x] SSE поток (`/api/stream`) с chunked graph delivery
 - [ ] Детектор циклов (simple_cycles, 2–6)
 - [ ] Fan-out detector (groupby sender)
 - [ ] Risk scoring model:
@@ -226,21 +226,6 @@ risk_score = σ(0.25 * degree + 0.40 * cycle_flag + 0.20 * balance_deviation + 0
 ## Неделя 3 — документация и сдача (19–26 мая)
 
 - [ ] Генерация скриншотов интерфейса по мере разработки
-
-### Курсовая (Руслан)
-
-- [ ] Введение (AML context + 2–5% GDP risk)
-- [ ] Упрощённая граф-модель
-- [ ] Архитектура системы
-- [ ] Практическая часть (UI + pipeline)
-- [ ] Заключение
-
-### Диплом (Дмитрий)
-
-- [ ] Расширенная математическая модель
-- [ ] Алгоритмы detection
-- [ ] Архитектура и выбор технологий
-- [ ] Апробация на AMLSim
 
 ---
 

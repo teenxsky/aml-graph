@@ -36,6 +36,9 @@ jobs:
           make prettier-check DOCKER=1
           make eslint-check DOCKER=1
 
+      - name: Run backend tests
+        run: make run-backend-tests DOCKER=1
+
       - name: Cleanup
         if: always()
         run: make clean

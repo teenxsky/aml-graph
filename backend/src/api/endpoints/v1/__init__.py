@@ -1,5 +1,7 @@
 from fastapi import APIRouter
 
+from src.api.endpoints.v1 import stream, upload
+
 __all__ = ['get_router']
 
 V1_PREFIX = '/v1'
@@ -12,4 +14,7 @@ def get_router() -> APIRouter:
 
     :return: APIRouter с '/v1' префиксом
     """
-    return APIRouter(prefix=V1_PREFIX)
+    router = APIRouter(prefix=V1_PREFIX)
+    router.include_router(upload.router, tags=['upload'])
+    router.include_router(stream.router, tags=['stream'])
+    return router
