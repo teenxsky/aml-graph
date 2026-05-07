@@ -3,7 +3,7 @@ ARG NODE_VERSION=24.15.0
 
 
 # ========================= Python App (BASE) =========================
-FROM --platform=linux/amd64 python:${PYTHON_VERSION}-slim AS base-backend
+FROM python:${PYTHON_VERSION}-slim AS base-backend
 WORKDIR /app
 
 # Python / PIP
