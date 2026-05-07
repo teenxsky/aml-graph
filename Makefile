@@ -58,6 +58,10 @@ install-backend: ## Установить backend зависимости
 install-frontend: ## Установить frontend зависимости
 	@$(FRONTEND_CMD) npm ci
 
+.PHONY: run-backend-tests
+run-backend-tests: ## Запустить тесты backend
+	@$(BACKEND_CMD) uv run pytest
+
 
 #--------------- КОМАНДЫ ДЛЯ КОД-СТИЛЯ ---------------#
 
