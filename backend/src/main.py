@@ -37,7 +37,6 @@ def create_app() -> FastAPI:
     fastapi_app: FastAPI = FastAPI(
         title=settings.app.name,
         debug=settings.app.debug,
-        root_router=get_root_router(),
         middleware=get_middlewares(),
         docs_url=settings.http.docs_path,
         redoc_url=None,
@@ -45,6 +44,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         root_path=ROOT_PATH,
     )
+
+    fastapi_app.include_router(get_root_router())
 
     setup_dishka(container=container, app=fastapi_app)
 
@@ -57,6 +58,7 @@ if __name__ == '__main__':
     """Запуск приложения."""
     uvicorn.run(
         app='src.main:app',
+        loop='uvloop',
         host=settings.app.host,
         port=settings.app.port,
         reload=settings.app.debug,
