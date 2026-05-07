@@ -12,7 +12,7 @@ repos:
       # ===== Backend (Python) =====
       - id: local-ruff-check
         name: ruff check (backend)
-        entry: bash -c 'cd backend && poetry run ruff check . --force-exclude --fix --exit-non-zero-on-fix'
+        entry: bash -c 'cd backend && uv run ruff check . --force-exclude --fix --exit-non-zero-on-fix'
         require_serial: true
         language: system
         types: [ python ]
@@ -21,7 +21,7 @@ repos:
 
       - id: local-ruff-format
         name: ruff format (backend)
-        entry: bash -c 'cd backend && poetry run ruff format . --force-exclude'
+        entry: bash -c 'cd backend && uv run ruff format . --force-exclude'
         require_serial: true
         language: system
         types: [ python ]
