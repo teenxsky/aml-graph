@@ -1,5 +1,7 @@
 from dishka import AsyncContainer, make_async_container
 
+from src.di.providers.sessions import SessionStoreProvider
+
 
 def create_container() -> AsyncContainer:
     """
@@ -7,4 +9,4 @@ def create_container() -> AsyncContainer:
 
     :return: Сконфигурированный AsyncContainer со всеми зарегистрированными провайдерами.
     """
-    return make_async_container()
+    return make_async_container(SessionStoreProvider())
