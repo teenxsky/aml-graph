@@ -42,6 +42,25 @@ def _resolve_entity_type(node_id: str, row: pd.Series, has_entity_col: bool) -> 
     return _infer_entity_type(node_id)
 
 
+def _build_node_id(row: pd.Series, id_col: str, bank_col: str | None) -> str:
+    """Строит уникальный node_id с учётом банка: «банк_id» или просто «id»."""
+    if bank_col and pd.notna(row.get(bank_col)):
+        return f'{row[bank_col]}_{row[id_col]}'
+    return str(row[id_col])
+
+
+def _parse_is_laundering(value: str | None) -> bool | None:
+    """Парсит флаг отмывания из строкового значения CSV."""
+    if value is None:
+        return None
+    val = value.strip().lower()
+    if val in ('1', '1.0', 'true', 'yes'):
+        return True
+    if val in ('0', '0.0', 'false', 'no'):
+        return False
+    return None
+
+
 class GraphBuilder:
     """Строит граф транзакций NetworkX из CSV и вычисляет его layout."""
 
@@ -56,27 +75,45 @@ class GraphBuilder:
         has_entity_col = 'entity_type' in df.columns
 
         for _, row in df.iterrows():
-            sender = str(row[column_mapping.sender_id])
-            receiver = str(row[column_mapping.receiver_id])
-            amount = float(row[column_mapping.amount])
-            device_id = _extract_optional_col(row, column_mapping.device_id, df.columns)
-            ip_address = _extract_optional_col(row, column_mapping.ip_address, df.columns)
+            sender = _build_node_id(row, column_mapping.sender_id, column_mapping.sender_bank)
+            receiver = _build_node_id(row, column_mapping.receiver_id, column_mapping.receiver_bank)
+
+            amount_paid = float(row[column_mapping.amount_paid])
+
+            cols = df.columns
+            amount_received_raw = _extract_optional_col(row, column_mapping.amount_received, cols)
+            amount_received = (
+                float(amount_received_raw) if amount_received_raw is not None else None
+            )
+
+            payment_currency = _extract_optional_col(row, column_mapping.payment_currency, cols)
+            receiving_currency = _extract_optional_col(row, column_mapping.receiving_currency, cols)
+            transaction_type = _extract_optional_col(row, column_mapping.transaction_type, cols)
+            device_id = _extract_optional_col(row, column_mapping.device_id, cols)
+            ip_address = _extract_optional_col(row, column_mapping.ip_address, cols)
+            is_laundering = _parse_is_laundering(
+                _extract_optional_col(row, column_mapping.is_laundering, cols),
+            )
 
             raw_timestamp = pd.to_datetime(row[column_mapping.timestamp], errors='coerce')
-
             if pd.isna(raw_timestamp):
                 raise ValueError(f'Invalid timestamp value: {row[column_mapping.timestamp]}')
-
             timestamp = int(raw_timestamp.timestamp())
 
-            for node_id in (sender, receiver):
+            for node_id, raw_id in (
+                (sender, str(row[column_mapping.sender_id])),
+                (receiver, str(row[column_mapping.receiver_id])),
+            ):
                 if node_id not in graph:
-                    entity_type = _resolve_entity_type(node_id, row, has_entity_col)
+                    entity_type = _resolve_entity_type(raw_id, row, has_entity_col)
                     graph.add_node(
                         node_id,
                         entity_type=entity_type,
                         device_ids=set(),
                         ip_addresses=set(),
+                        in_flow=0.0,
+                        out_flow=0.0,
+                        is_laundering_node=False,
                     )
 
             if device_id:
@@ -84,13 +121,26 @@ class GraphBuilder:
             if ip_address:
                 graph.nodes[sender]['ip_addresses'].add(ip_address)
 
+            in_val = amount_received if amount_received is not None else amount_paid
+            graph.nodes[receiver]['in_flow'] += in_val
+            graph.nodes[sender]['out_flow'] += amount_paid
+
+            if is_laundering:
+                graph.nodes[sender]['is_laundering_node'] = True
+                graph.nodes[receiver]['is_laundering_node'] = True
+
             graph.add_edge(
                 sender,
                 receiver,
-                amount=amount,
+                amount_paid=amount_paid,
+                amount_received=amount_received,
+                payment_currency=payment_currency,
+                receiving_currency=receiving_currency,
+                transaction_type=transaction_type,
                 timestamp=timestamp,
                 device_id=device_id,
                 ip_address=ip_address,
+                is_laundering=is_laundering,
             )
 
         return graph
