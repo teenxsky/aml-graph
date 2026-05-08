@@ -19,10 +19,38 @@ class ColumnMapping(BaseModel):
 
     sender_id: str = Field(description='Название столбца CSV с ID отправителя')
     receiver_id: str = Field(description='Название столбца CSV с ID получателя')
-    amount: str = Field(description='Название столбца CSV с суммой транзакции')
+    amount_paid: str = Field(description='Название столбца CSV с суммой исходящего платежа')
     timestamp: str = Field(description='Название столбца CSV с меткой времени')
+    sender_bank: str | None = Field(
+        default=None,
+        description='Название столбца CSV с банком отправителя',
+    )
+    receiver_bank: str | None = Field(
+        default=None,
+        description='Название столбца CSV с банком получателя',
+    )
+    amount_received: str | None = Field(
+        default=None,
+        description='Название столбца CSV с суммой полученного платежа',
+    )
+    payment_currency: str | None = Field(
+        default=None,
+        description='Название столбца CSV с валютой платежа',
+    )
+    receiving_currency: str | None = Field(
+        default=None,
+        description='Название столбца CSV с валютой получения',
+    )
+    transaction_type: str | None = Field(
+        default=None,
+        description='Название столбца CSV с типом транзакции',
+    )
     device_id: str | None = Field(default=None, description='Название столбца CSV с ID устройства')
     ip_address: str | None = Field(default=None, description='Название столбца CSV с IP-адресом')
+    is_laundering: str | None = Field(
+        default=None,
+        description='Название столбца CSV с флагом отмывания',
+    )
 
 
 class SessionResponse(BaseModel):
@@ -47,6 +75,9 @@ class NodeData(BaseModel):
     x: float
     y: float
     risk_score: float
+    in_flow: float = 0.0
+    out_flow: float = 0.0
+    is_laundering_node: bool = False
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -61,8 +92,13 @@ class EdgeData(BaseModel):
 
     source: str
     target: str
-    amount: float
+    amount_paid: float
     timestamp: int
+    amount_received: float | None = None
+    payment_currency: str | None = None
+    receiving_currency: str | None = None
+    transaction_type: str | None = None
+    is_laundering: bool | None = None
 
 
 class EdgeChunk(BaseModel):

@@ -5,6 +5,19 @@ import networkx as nx
 
 __all__ = ['compute_scores']
 
+# Риск по типу транзакции (0.0–1.0)
+# TODO(teenxsky): почекать IBM AML для нахождения более расширенного списка
+_TRANSACTION_TYPE_RISK: dict[str, float] = {
+    'Cash': 1.0,
+    'Bitcoin': 0.9,
+    'Cheque': 0.6,
+    'Wire': 0.4,
+    'ACH': 0.3,
+    'Credit Card': 0.2,
+    'Reinvestment': 0.1,
+}
+_DEFAULT_TYPE_RISK = 0.3
+
 
 def _sigmoid(x: float) -> float:
     """Сигмоид-функция активации."""
@@ -20,8 +33,9 @@ def compute_scores(
 ) -> dict[str, float]:
     """Вычисляет risk score для каждого узла через взвешенную сумму признаков + sigmoid.
 
-    risk_score = sigmoid(degree_norm*0.25 + cycle_flag*0.40
-                         + balance_deviation*0.20 + shared_device_flag*0.15)
+    risk_score = sigmoid(degree_norm*0.20 + cycle_flag*0.35
+                         + balance_deviation*0.20 + shared_device_flag*0.10
+                         + transaction_type_risk*0.15)
     """
     if len(graph) == 0:
         return {}
@@ -34,9 +48,21 @@ def compute_scores(
     in_flow: dict[str, float] = defaultdict(float)
     out_flow: dict[str, float] = defaultdict(float)
     for u, v, data in graph.edges(data=True):
-        amount = data.get('amount', 0.0)
-        out_flow[str(u)] += amount
-        in_flow[str(v)] += amount
+        amount_paid = data.get('amount_paid', 0.0)
+        amount_received = data.get('amount_received')
+        in_val = amount_received if amount_received is not None else amount_paid
+        out_flow[str(u)] += amount_paid
+        in_flow[str(v)] += in_val
+
+    type_risk_per_node: dict[str, float] = {}
+    for node in graph.nodes():
+        node_str = str(node)
+        risk_values: list[float] = []
+        for edges_fn in (graph.out_edges, graph.in_edges):
+            for _, _, data in edges_fn(node, data=True):  # type: ignore[call-arg]
+                t_type = data.get('transaction_type') or ''
+                risk_values.append(_TRANSACTION_TYPE_RISK.get(t_type, _DEFAULT_TYPE_RISK))
+        type_risk_per_node[node_str] = max(risk_values) if risk_values else _DEFAULT_TYPE_RISK
 
     scores: dict[str, float] = {}
     for node in graph.nodes():
@@ -51,11 +77,14 @@ def compute_scores(
         denom = max(in_f, out_f, 1.0)
         balance_deviation = abs(in_f - out_f) / denom
 
+        transaction_type_risk = type_risk_per_node.get(node_str, _DEFAULT_TYPE_RISK)
+
         raw = (
-            degree_norm * 0.25
-            + cycle_flag * 0.40
+            degree_norm * 0.20
+            + cycle_flag * 0.35
             + balance_deviation * 0.20
-            + shared_device_flag * 0.15
+            + shared_device_flag * 0.10
+            + transaction_type_risk * 0.15
         )
         scores[node_str] = _sigmoid(raw)
 

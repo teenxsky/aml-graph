@@ -68,7 +68,7 @@ async def test_upload_with_device_id(client: AsyncClient, column_mapping_json: s
     mapping = json.dumps({
         'sender_id': 'sender',
         'receiver_id': 'receiver',
-        'amount': 'amount',
+        'amount_paid': 'amount',
         'timestamp': 'ts',
         'device_id': 'dev',
     })

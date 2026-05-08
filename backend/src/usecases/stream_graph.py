@@ -75,10 +75,13 @@ class StreamGraphUseCase:
                         x=x,
                         y=y,
                         risk_score=scores.get(node_str, 0.0),
+                        in_flow=attrs.get('in_flow', 0.0),
+                        out_flow=attrs.get('out_flow', 0.0),
+                        is_laundering_node=attrs.get('is_laundering_node', False),
                         attributes={
                             k: list(v) if isinstance(v, set) else v
                             for k, v in attrs.items()
-                            if k != 'entity_type'
+                            if k not in ('entity_type', 'in_flow', 'out_flow', 'is_laundering_node')
                         },
                     ),
                 )
@@ -92,8 +95,13 @@ class StreamGraphUseCase:
                 EdgeData(
                     source=str(u),
                     target=str(v),
-                    amount=float(d.get('amount', 0.0)),
+                    amount_paid=float(d.get('amount_paid', 0.0)),
                     timestamp=int(d.get('timestamp', 0)),
+                    amount_received=d.get('amount_received'),
+                    payment_currency=d.get('payment_currency'),
+                    receiving_currency=d.get('receiving_currency'),
+                    transaction_type=d.get('transaction_type'),
+                    is_laundering=d.get('is_laundering'),
                 )
                 for u, v, d in batch
             ]

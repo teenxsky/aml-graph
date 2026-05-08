@@ -30,7 +30,7 @@ def column_mapping_json() -> str:
     return json.dumps({
         'sender_id': 'sender',
         'receiver_id': 'receiver',
-        'amount': 'amount',
+        'amount_paid': 'amount',
         'timestamp': 'ts',
     })
 

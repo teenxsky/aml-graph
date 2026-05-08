@@ -26,6 +26,10 @@ dev = [
     "ty>=0.0.34",
 ]
 
+[tool.ty.src]
+include = ["src"]
+exclude = ["tests/"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
