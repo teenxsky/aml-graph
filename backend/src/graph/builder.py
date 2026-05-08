@@ -1,8 +1,9 @@
-import io
+﻿import io
 
 import networkx as nx
 import pandas as pd
 
+from src.graph.layout import compute_graph_layout
 from src.shared.schemas import ColumnMapping
 
 __all__ = ['GraphBuilder']
@@ -62,7 +63,7 @@ def _parse_is_laundering(value: str | None) -> bool | None:
 
 
 class GraphBuilder:
-    """Строит граф транзакций NetworkX из CSV и вычисляет его layout."""
+    """Строит граф транзакций NetworkX из CSV или normalized DataFrame."""
 
     def build_from_csv(
         self,
@@ -74,7 +75,7 @@ class GraphBuilder:
         graph = nx.DiGraph()
         has_entity_col = 'entity_type' in df.columns
 
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             sender = _build_node_id(row, column_mapping.sender_id, column_mapping.sender_bank)
             receiver = _build_node_id(row, column_mapping.receiver_id, column_mapping.receiver_bank)
 
@@ -132,29 +133,139 @@ class GraphBuilder:
             graph.add_edge(
                 sender,
                 receiver,
+                id=f'tx_{idx}',
+                transaction_id=f'tx_{idx}',
                 amount_paid=amount_paid,
+                amount=amount_paid,
                 amount_received=amount_received,
                 payment_currency=payment_currency,
                 receiving_currency=receiving_currency,
                 transaction_type=transaction_type,
+                payment_format=transaction_type,
                 timestamp=timestamp,
                 device_id=device_id,
                 ip_address=ip_address,
                 is_laundering=is_laundering,
+                risk_score=0.0,
+                alerts=[],
             )
 
         return graph
 
-    def compute_layout(self, graph: nx.DiGraph) -> dict[str, tuple[float, float]]:
-        """Вычисляет 2D-координаты узлов через nx.forceatlas2_layout, при ошибке — spring layout."""
-        if len(graph) == 0:
-            return {}
-        if len(graph) == 1:
-            return {str(next(iter(graph.nodes()))): (0.0, 0.0)}
+    def build_from_normalized_transactions(self, df: pd.DataFrame) -> nx.MultiDiGraph:
+        """Build a transaction multigraph from normalized transaction rows."""
+        required = {'transaction_id', 'timestamp', 'sender_id', 'receiver_id', 'amount'}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f'Missing normalized columns: {", ".join(sorted(missing))}')
 
-        try:
-            positions = nx.forceatlas2_layout(graph, max_iter=500, seed=42)
-        except Exception:  # noqa: BLE001
-            positions = nx.spring_layout(graph, seed=42)
+        graph = nx.MultiDiGraph()
 
-        return {str(node): (float(x), float(y)) for node, (x, y) in positions.items()}
+        for _, row in df.iterrows():
+            sender = str(row['sender_id'])
+            receiver = str(row['receiver_id'])
+            transaction_id = str(row['transaction_id'])
+            amount = float(row['amount'])
+            timestamp_raw = pd.to_datetime(row['timestamp'], errors='coerce')
+            if pd.isna(timestamp_raw):
+                raise ValueError(f'Invalid normalized timestamp: {row["timestamp"]}')
+            timestamp = int(timestamp_raw.timestamp())
+
+            for node_id in (sender, receiver):
+                if node_id not in graph:
+                    graph.add_node(
+                        node_id,
+                        id=node_id,
+                        type='account',
+                        entity_type='account',
+                        label=node_id,
+                        risk_score=0.0,
+                        alerts=[],
+                        device_ids=set(),
+                        ip_addresses=set(),
+                        in_flow=0.0,
+                        out_flow=0.0,
+                        is_laundering_node=False,
+                    )
+
+            amount_received = (
+                float(row['amount_received'])
+                if 'amount_received' in df.columns and pd.notna(row.get('amount_received'))
+                else None
+            )
+            payment_currency = (
+                str(row['payment_currency'])
+                if 'payment_currency' in df.columns and pd.notna(row.get('payment_currency'))
+                else None
+            )
+            receiving_currency = (
+                str(row['receiving_currency'])
+                if 'receiving_currency' in df.columns and pd.notna(row.get('receiving_currency'))
+                else None
+            )
+            payment_format = (
+                str(row['payment_format'])
+                if 'payment_format' in df.columns and pd.notna(row.get('payment_format'))
+                else None
+            )
+            device_id = (
+                str(row['device_id'])
+                if 'device_id' in df.columns and pd.notna(row.get('device_id'))
+                else None
+            )
+            ip_address = (
+                str(row['ip_address'])
+                if 'ip_address' in df.columns and pd.notna(row.get('ip_address'))
+                else None
+            )
+            is_laundering = (
+                int(row['is_laundering'])
+                if 'is_laundering' in df.columns and pd.notna(row.get('is_laundering'))
+                else None
+            )
+
+            if device_id:
+                graph.nodes[sender]['device_ids'].add(device_id)
+            if ip_address:
+                graph.nodes[sender]['ip_addresses'].add(ip_address)
+
+            graph.nodes[sender]['out_flow'] += amount
+            receiver_flow = amount_received if amount_received is not None else amount
+            graph.nodes[receiver]['in_flow'] += receiver_flow
+            if is_laundering:
+                graph.nodes[sender]['is_laundering_node'] = True
+                graph.nodes[receiver]['is_laundering_node'] = True
+
+            graph.add_edge(
+                sender,
+                receiver,
+                key=transaction_id,
+                id=transaction_id,
+                transaction_id=transaction_id,
+                amount=amount,
+                amount_paid=amount,
+                amount_received=amount_received,
+                receiving_currency=receiving_currency,
+                payment_currency=payment_currency,
+                payment_format=payment_format,
+                transaction_type=payment_format,
+                timestamp=timestamp,
+                is_laundering=is_laundering,
+                device_id=device_id,
+                ip_address=ip_address,
+                type='transfer',
+                risk_score=0.0,
+                alerts=[],
+            )
+
+        return graph
+
+    def compute_layout(
+        self,
+        graph: nx.DiGraph,
+        max_nodes: int = 2000,
+    ) -> dict[str, tuple[float, float]]:
+        """Compute 2D graph coordinates."""
+        return compute_graph_layout(graph, max_nodes=max_nodes)
+
+

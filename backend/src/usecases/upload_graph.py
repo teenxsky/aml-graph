@@ -1,38 +1,43 @@
 import uuid
+from typing import Any
 
 from src.di.providers.sessions import GraphSession, SessionStore
 from src.graph.builder import GraphBuilder
 from src.graph.detectors import detect_cycles, detect_fanout, detect_shared_device, detect_transit
-from src.graph.scoring import compute_scores
+from src.graph.ibm import read_ibm_transactions
+from src.graph.layout import compute_graph_layout
+from src.graph.scoring import apply_alert_scores, flatten_alerts
 from src.shared.schemas import ColumnMapping
 
 __all__ = ['UploadGraphUseCase']
 
 
 class UploadGraphUseCase:
-    """
-    Оркестрирует загрузку CSV:
-    - построение графа,
-    - layout,
-    - детекторы,
-    - скоринг,
-    - сохранение сессии.
-    """
+    """Build graph sessions from uploaded transaction files."""
 
     def __init__(self, builder: GraphBuilder, session_store: SessionStore) -> None:
         self._builder = builder
         self._session_store = session_store
 
     def execute(self, file_bytes: bytes, mapping: ColumnMapping) -> str:
-        """Строит граф, запускает все детекторы и возвращает идентификатор сессии."""
+        """Build and save a graph session from a mapped CSV file."""
         graph = self._builder.build_from_csv(file_bytes, mapping)
-        layout = self._builder.compute_layout(graph)
+        return self._save_graph(graph)
 
+    def execute_ibm(self, file_bytes: bytes, filename: str | None = None) -> str:
+        """Build and save a graph session from IBM Transactions for AML input."""
+        normalized = read_ibm_transactions(file_bytes, filename)
+        graph = self._builder.build_from_normalized_transactions(normalized)
+        return self._save_graph(graph)
+
+    def _save_graph(self, graph: Any) -> str:
         cycles = detect_cycles(graph)
         fanout = detect_fanout(graph)
         transit = detect_transit(graph)
         shared_device = detect_shared_device(graph)
-        scores = compute_scores(graph, cycles, fanout, transit, shared_device)
+        alerts = flatten_alerts(cycles, fanout, transit, shared_device)
+        scores, edge_scores = apply_alert_scores(graph, alerts)
+        layout = compute_graph_layout(graph)
 
         session_id = str(uuid.uuid4())
         self._session_store.save(
@@ -45,6 +50,8 @@ class UploadGraphUseCase:
                 transit=transit,
                 shared_device=shared_device,
                 scores=scores,
+                alerts=alerts,
+                edge_scores=edge_scores,
             ),
         )
         return session_id
