@@ -1,4 +1,4 @@
-﻿import math
+import math
 from collections import defaultdict
 from typing import Any
 
@@ -11,7 +11,7 @@ def _amount(data: dict[str, Any]) -> float:
     value = data.get('amount', data.get('amount_paid', 0.0))
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
 
 
@@ -19,7 +19,7 @@ def _timestamp(data: dict[str, Any]) -> int:
     value = data.get('timestamp', 0)
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 
@@ -31,22 +31,37 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-def _edge_data_between(graph: nx.Graph, u: object, v: object) -> list[dict[str, Any]]:
-    edge_data = graph.get_edge_data(u, v, default={})
-    if not edge_data:
+def _edge_data_between(
+    graph: nx.DiGraph | nx.MultiDiGraph,
+    u: object,
+    v: object,
+) -> list[dict[str, Any]]:
+    edge_data = graph.get_edge_data(u, v)
+
+    if edge_data is None:
         return []
+
     if graph.is_multigraph():
-        return list(edge_data.values())
-    return [edge_data]
+        return [dict(data) for data in edge_data.values() if isinstance(data, dict)]
+
+    if isinstance(edge_data, dict):
+        return [dict(edge_data)]
+
+    return []
 
 
-def _iter_out_edges(graph: nx.Graph, node: object) -> list[tuple[object, object, dict[str, Any]]]:
+def _iter_out_edges(
+    graph: nx.DiGraph | nx.MultiDiGraph,
+    node: object,
+) -> list[tuple[object, object, dict[str, Any]]]:
     if graph.is_multigraph():
         return [(u, v, data) for u, v, _, data in graph.out_edges(node, keys=True, data=True)]
     return list(graph.out_edges(node, data=True))
 
 
-def _iter_edges(graph: nx.Graph) -> list[tuple[object, object, dict[str, Any]]]:
+def _iter_edges(
+    graph: nx.DiGraph | nx.MultiDiGraph,
+) -> list[tuple[object, object, dict[str, Any]]]:
     if graph.is_multigraph():
         return [(u, v, data) for u, v, _, data in graph.edges(keys=True, data=True)]
     return list(graph.edges(data=True))
@@ -152,11 +167,7 @@ def detect_fanout(
                 break
 
             t_start = _timestamp(out_edges[i][2])
-            window = [
-                e
-                for e in out_edges[i:]
-                if _timestamp(e[2]) - t_start <= time_window_seconds
-            ]
+            window = [e for e in out_edges[i:] if _timestamp(e[2]) - t_start <= time_window_seconds]
 
             receiver_amounts: dict[str, float] = defaultdict(float)
             edge_ids: list[str] = []
@@ -183,9 +194,7 @@ def detect_fanout(
                     for _, _, data in window
                 )
                 score = _clamp(
-                    0.45
-                    + 0.35 * (1.0 - min(cv / max_cv, 1.0))
-                    + 0.20 * high_risk_format,
+                    0.45 + 0.35 * (1.0 - min(cv / max_cv, 1.0)) + 0.20 * high_risk_format,
                 )
                 results.append(
                     {
@@ -340,4 +349,3 @@ def detect_shared_device(graph: nx.DiGraph) -> list[dict]:
         )
 
     return results
-

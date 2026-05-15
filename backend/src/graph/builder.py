@@ -1,4 +1,4 @@
-﻿import io
+import io
 
 import networkx as nx
 import pandas as pd
@@ -267,5 +267,3 @@ class GraphBuilder:
     ) -> dict[str, tuple[float, float]]:
         """Compute 2D graph coordinates."""
         return compute_graph_layout(graph, max_nodes=max_nodes)
-
-

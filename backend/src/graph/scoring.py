@@ -10,7 +10,7 @@ __all__ = ['apply_alert_scores', 'compute_scores', 'flatten_alerts']
 def _clamp_score(value: Any) -> float:
     try:
         score = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0.0
     return max(0.0, min(1.0, score))
 
@@ -65,8 +65,7 @@ def apply_alert_scores(
             edge_alert_ids[edge_str].append(alert_id)
 
     node_scores = {
-        str(node): _combine(node_alert_scores.get(str(node), []))
-        for node in graph.nodes()
+        str(node): _combine(node_alert_scores.get(str(node), [])) for node in graph.nodes()
     }
     edge_scores: dict[str, float] = {}
 

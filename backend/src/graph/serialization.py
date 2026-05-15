@@ -11,6 +11,20 @@ __all__ = [
 ]
 
 
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        return default
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except TypeError, ValueError:
+        return default
+
+
 def _safe(value: Any) -> Any:
     if isinstance(value, set):
         return sorted(str(v) for v in value)
@@ -67,9 +81,9 @@ def build_graph_payload(
                 'id': edge_id,
                 'source': str(u),
                 'target': str(v),
-                'amount': float(attrs.get('amount', attrs.get('amount_paid', 0.0))),
-                'timestamp': int(attrs.get('timestamp', 0)),
-                'risk_score': float(attrs.get('risk_score', 0.0)),
+                'amount': _as_float(attrs.get('amount', attrs.get('amount_paid', 0.0))),
+                'timestamp': _as_int(attrs.get('timestamp')),
+                'risk_score': _as_float(attrs.get('risk_score')),
                 'alerts': list(attrs.get('alerts', [])),
                 'attributes': {k: _safe(v) for k, v in attrs.items() if k not in excluded},
             },
@@ -84,16 +98,15 @@ def build_session_stats(
 ) -> dict[str, Any]:
     """Build aggregate graph statistics for a session."""
     timestamps = [
-        int(d.get('timestamp'))
+        _as_int(d.get('timestamp'))
         for _, _, _, d in _edge_iter(graph)
         if d.get('timestamp') is not None
     ]
     amounts = [
-        float(d.get('amount', d.get('amount_paid', 0.0)))
-        for _, _, _, d in _edge_iter(graph)
+        float(d.get('amount', d.get('amount_paid', 0.0))) for _, _, _, d in _edge_iter(graph)
     ]
     laundering = [
-        int(d.get('is_laundering'))
+        _as_int(d.get('is_laundering'))
         for _, _, _, d in _edge_iter(graph)
         if d.get('is_laundering') is not None
     ]
