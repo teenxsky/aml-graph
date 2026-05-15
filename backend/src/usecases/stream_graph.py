@@ -54,6 +54,10 @@ class StreamGraphUseCase:
         layout = session.layout
         scores = session.scores
 
+        yield 'event: started\ndata: {}\n\n'
+        yield 'event: parsed\ndata: {}\n\n'
+        yield 'event: graph_built\ndata: {}\n\n'
+
         meta = GraphMeta(
             session_id=session_id,
             node_count=graph.number_of_nodes(),
@@ -72,9 +76,12 @@ class StreamGraphUseCase:
                     NodeData(
                         id=node_str,
                         entity_type=attrs.get('entity_type', 'unknown'),
+                        type=attrs.get('type', attrs.get('entity_type', 'unknown')),
+                        label=attrs.get('label', node_str),
                         x=x,
                         y=y,
                         risk_score=scores.get(node_str, 0.0),
+                        alerts=list(attrs.get('alerts', [])),
                         in_flow=attrs.get('in_flow', 0.0),
                         out_flow=attrs.get('out_flow', 0.0),
                         is_laundering_node=attrs.get('is_laundering_node', False),
@@ -93,15 +100,36 @@ class StreamGraphUseCase:
             batch = edges[i : i + _EDGE_BATCH]
             edge_list = [
                 EdgeData(
+                    id=str(d.get('id') or d.get('transaction_id') or f'{u}->{v}'),
                     source=str(u),
                     target=str(v),
                     amount_paid=float(d.get('amount_paid', 0.0)),
                     timestamp=int(d.get('timestamp', 0)),
+                    risk_score=float(d.get('risk_score', 0.0)),
+                    alerts=list(d.get('alerts', [])),
                     amount_received=d.get('amount_received'),
                     payment_currency=d.get('payment_currency'),
                     receiving_currency=d.get('receiving_currency'),
                     transaction_type=d.get('transaction_type'),
                     is_laundering=d.get('is_laundering'),
+                    attributes={
+                        k: list(v) if isinstance(v, set) else v
+                        for k, v in d.items()
+                        if k
+                        not in (
+                            'id',
+                            'transaction_id',
+                            'amount_paid',
+                            'timestamp',
+                            'risk_score',
+                            'alerts',
+                            'amount_received',
+                            'payment_currency',
+                            'receiving_currency',
+                            'transaction_type',
+                            'is_laundering',
+                        )
+                    },
                 )
                 for u, v, d in batch
             ]
@@ -109,6 +137,7 @@ class StreamGraphUseCase:
             yield f'event: edges_chunk\ndata: {chunk.model_dump_json()}\n\n'
 
         yield 'event: layout_done\ndata: {}\n\n'
+        yield 'event: detectors_done\ndata: {}\n\n'
 
         for pattern_type, items in [
             ('cycles', session.cycles),
@@ -122,4 +151,6 @@ class StreamGraphUseCase:
             )
             yield f'event: detector_result\ndata: {result.model_dump_json()}\n\n'
 
+        yield 'event: scoring_done\ndata: {}\n\n'
+        yield 'event: completed\ndata: {}\n\n'
         yield 'event: stream_done\ndata: {}\n\n'

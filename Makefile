@@ -60,7 +60,7 @@ install-frontend: ## Установить frontend зависимости
 
 .PHONY: run-backend-tests
 run-backend-tests: ## Запустить тесты backend
-	@$(BACKEND_CMD) uv run pytest
+	@$(BACKEND_CMD) uv run python -m pytest
 
 
 #--------------- КОМАНДЫ ДЛЯ КОД-СТИЛЯ ---------------#

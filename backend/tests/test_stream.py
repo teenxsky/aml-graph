@@ -59,3 +59,8 @@ async def test_stream_detector_results_all_patterns(client: AsyncClient, session
             pattern_types.add(data['pattern_type'])
 
     assert pattern_types == {'cycles', 'fanout', 'transit', 'shared_device'}
+
+
+async def test_stream_contains_completed_stage(client: AsyncClient, session_id: str) -> None:
+    response = await client.get(f'/api/v1/stream/{session_id}')
+    assert 'event: completed' in response.text

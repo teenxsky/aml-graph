@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import networkx as nx
 from dishka import Provider, Scope, provide
@@ -15,6 +16,8 @@ class GraphSession:
     transit: list[dict]
     shared_device: list[dict]
     scores: dict[str, float]
+    alerts: list[dict[str, Any]] = field(default_factory=list)
+    edge_scores: dict[str, float] = field(default_factory=dict)
 
 
 class SessionStore:

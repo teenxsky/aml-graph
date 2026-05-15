@@ -384,3 +384,31 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,macos,linux,windows,node
+
+# Local data and generated files
+backend/data/
+backend/results/
+backend/uploads/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+venv/
+.venv/
+backend/.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Frontend
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/

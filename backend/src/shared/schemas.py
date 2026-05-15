@@ -14,53 +14,30 @@ __all__ = [
 ]
 
 
-class ColumnMapping(BaseModel):
-    """Маппинг столбцов CSV на поля схемы графа."""
-
-    sender_id: str = Field(description='Название столбца CSV с ID отправителя')
-    receiver_id: str = Field(description='Название столбца CSV с ID получателя')
-    amount_paid: str = Field(description='Название столбца CSV с суммой исходящего платежа')
-    timestamp: str = Field(description='Название столбца CSV с меткой времени')
-    sender_bank: str | None = Field(
-        default=None,
-        description='Название столбца CSV с банком отправителя',
-    )
-    receiver_bank: str | None = Field(
-        default=None,
-        description='Название столбца CSV с банком получателя',
-    )
-    amount_received: str | None = Field(
-        default=None,
-        description='Название столбца CSV с суммой полученного платежа',
-    )
-    payment_currency: str | None = Field(
-        default=None,
-        description='Название столбца CSV с валютой платежа',
-    )
-    receiving_currency: str | None = Field(
-        default=None,
-        description='Название столбца CSV с валютой получения',
-    )
-    transaction_type: str | None = Field(
-        default=None,
-        description='Название столбца CSV с типом транзакции',
-    )
-    device_id: str | None = Field(default=None, description='Название столбца CSV с ID устройства')
-    ip_address: str | None = Field(default=None, description='Название столбца CSV с IP-адресом')
-    is_laundering: str | None = Field(
-        default=None,
-        description='Название столбца CSV с флагом отмывания',
-    )
+class ColumnMapping(BaseModel):  # noqa: D101
+    sender_id: str
+    receiver_id: str
+    amount_paid: str
+    timestamp: str
+    sender_bank: str | None = None
+    receiver_bank: str | None = None
+    amount_received: str | None = None
+    payment_currency: str | None = None
+    receiving_currency: str | None = None
+    transaction_type: str | None = None
+    device_id: str | None = None
+    ip_address: str | None = None
+    is_laundering: str | None = None
 
 
 class SessionResponse(BaseModel):
-    """Ответ с идентификатором созданной сессии."""
+    """Response with created session identifier."""
 
     session_id: str
 
 
 class GraphMeta(BaseModel):
-    """Метаданные построенного графа транзакций."""
+    """Graph metadata for SSE streaming."""
 
     session_id: str
     node_count: int
@@ -68,13 +45,16 @@ class GraphMeta(BaseModel):
 
 
 class NodeData(BaseModel):
-    """Данные одного узла графа с координатами и риск-скором."""
+    """One graph node with layout and scoring data."""
 
     id: str
     entity_type: str
+    type: str | None = None
+    label: str | None = None
     x: float
     y: float
     risk_score: float
+    alerts: list[str] = Field(default_factory=list)
     in_flow: float = 0.0
     out_flow: float = 0.0
     is_laundering_node: bool = False
@@ -82,33 +62,37 @@ class NodeData(BaseModel):
 
 
 class NodeChunk(BaseModel):
-    """Батч узлов графа для SSE-стриминга."""
+    """SSE node chunk."""
 
     nodes: list[NodeData]
 
 
 class EdgeData(BaseModel):
-    """Данные одного ребра (транзакции) графа."""
+    """One transaction edge in a graph payload."""
 
+    id: str | None = None
     source: str
     target: str
     amount_paid: float
     timestamp: int
+    risk_score: float = 0.0
+    alerts: list[str] = Field(default_factory=list)
     amount_received: float | None = None
     payment_currency: str | None = None
     receiving_currency: str | None = None
     transaction_type: str | None = None
     is_laundering: bool | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class EdgeChunk(BaseModel):
-    """Батч рёбер графа для SSE-стриминга."""
+    """SSE edge chunk."""
 
     edges: list[EdgeData]
 
 
 class DetectorResult(BaseModel):
-    """Результат одного AML-детектора с типом паттерна и списком найденных элементов."""
+    """Detector result with pattern type and alert items."""
 
     pattern_type: str
     items: list[dict[str, Any]]

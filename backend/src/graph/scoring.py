@@ -1,27 +1,87 @@
-import math
 from collections import defaultdict
+from collections.abc import Iterator
+from typing import Any
 
 import networkx as nx
 
-__all__ = ['compute_scores']
-
-# Риск по типу транзакции (0.0–1.0)
-# TODO(teenxsky): почекать IBM AML для нахождения более расширенного списка
-_TRANSACTION_TYPE_RISK: dict[str, float] = {
-    'Cash': 1.0,
-    'Bitcoin': 0.9,
-    'Cheque': 0.6,
-    'Wire': 0.4,
-    'ACH': 0.3,
-    'Credit Card': 0.2,
-    'Reinvestment': 0.1,
-}
-_DEFAULT_TYPE_RISK = 0.3
+__all__ = ['apply_alert_scores', 'compute_scores', 'flatten_alerts']
 
 
-def _sigmoid(x: float) -> float:
-    """Сигмоид-функция активации."""
-    return 1.0 / (1.0 + math.exp(-x))
+def _clamp_score(value: Any) -> float:
+    try:
+        score = float(value)
+    except TypeError, ValueError:
+        return 0.0
+    return max(0.0, min(1.0, score))
+
+
+def _combine(scores: list[float]) -> float:
+    remaining = 1.0
+    for score in scores:
+        remaining *= 1.0 - _clamp_score(score)
+    return 1.0 - remaining
+
+
+def _iter_edges(graph: nx.Graph) -> Iterator[tuple[object, object, object | None, dict]]:
+    if graph.is_multigraph():
+        yield from graph.edges(keys=True, data=True)
+        return
+    for u, v, data in graph.edges(data=True):
+        yield u, v, None, data
+
+
+def flatten_alerts(*groups: list[dict]) -> list[dict]:
+    """Flatten detector alert groups into one alert list."""
+    alerts = []
+    for group in groups:
+        alerts.extend(group)
+    return alerts
+
+
+def apply_alert_scores(
+    graph: nx.Graph,
+    alerts: list[dict],
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Apply alert-based risk scores to graph nodes and edges."""
+    node_alert_scores: dict[str, list[float]] = defaultdict(list)
+    edge_alert_scores: dict[str, list[float]] = defaultdict(list)
+    node_alert_ids: dict[str, list[str]] = defaultdict(list)
+    edge_alert_ids: dict[str, list[str]] = defaultdict(list)
+
+    for index, alert in enumerate(alerts):
+        alert_id = str(alert.get('id') or f'alert_{index}')
+        score = _clamp_score(alert.get('score', 0.0))
+        node_ids = alert.get('node_ids') or alert.get('nodes') or []
+        edge_ids = alert.get('edge_ids') or []
+
+        for node_id in node_ids:
+            node_str = str(node_id)
+            node_alert_scores[node_str].append(score)
+            node_alert_ids[node_str].append(alert_id)
+
+        for edge_id in edge_ids:
+            edge_str = str(edge_id)
+            edge_alert_scores[edge_str].append(score)
+            edge_alert_ids[edge_str].append(alert_id)
+
+    node_scores = {
+        str(node): _combine(node_alert_scores.get(str(node), [])) for node in graph.nodes()
+    }
+    edge_scores: dict[str, float] = {}
+
+    for node, attrs in graph.nodes(data=True):
+        node_str = str(node)
+        attrs['risk_score'] = node_scores[node_str]
+        attrs['alerts'] = node_alert_ids.get(node_str, [])
+
+    for u, v, key, attrs in _iter_edges(graph):
+        edge_id = str(attrs.get('id') or attrs.get('transaction_id') or key or f'{u}->{v}')
+        score = _combine(edge_alert_scores.get(edge_id, []))
+        attrs['risk_score'] = score
+        attrs['alerts'] = edge_alert_ids.get(edge_id, [])
+        edge_scores[edge_id] = score
+
+    return node_scores, edge_scores
 
 
 def compute_scores(
@@ -31,61 +91,11 @@ def compute_scores(
     transit_nodes: list[dict],
     shared_device_nodes: list[dict],
 ) -> dict[str, float]:
-    """Вычисляет risk score для каждого узла через взвешенную сумму признаков + sigmoid.
-
-    risk_score = sigmoid(degree_norm*0.20 + cycle_flag*0.35
-                         + balance_deviation*0.20 + shared_device_flag*0.10
-                         + transaction_type_risk*0.15)
-    """
+    """Compute node risk scores from detector outputs."""
     if len(graph) == 0:
         return {}
-
-    max_degree = max((graph.degree(n) for n in graph.nodes()), default=1) or 1
-
-    cycle_node_set: set[str] = {str(n) for c in cycles for n in c['nodes']}
-    shared_device_node_set: set[str] = {str(n) for sd in shared_device_nodes for n in sd['nodes']}
-
-    in_flow: dict[str, float] = defaultdict(float)
-    out_flow: dict[str, float] = defaultdict(float)
-    for u, v, data in graph.edges(data=True):
-        amount_paid = data.get('amount_paid', 0.0)
-        amount_received = data.get('amount_received')
-        in_val = amount_received if amount_received is not None else amount_paid
-        out_flow[str(u)] += amount_paid
-        in_flow[str(v)] += in_val
-
-    type_risk_per_node: dict[str, float] = {}
-    for node in graph.nodes():
-        node_str = str(node)
-        risk_values: list[float] = []
-        for edges_fn in (graph.out_edges, graph.in_edges):
-            for _, _, data in edges_fn(node, data=True):  # type: ignore[call-arg]
-                t_type = data.get('transaction_type') or ''
-                risk_values.append(_TRANSACTION_TYPE_RISK.get(t_type, _DEFAULT_TYPE_RISK))
-        type_risk_per_node[node_str] = max(risk_values) if risk_values else _DEFAULT_TYPE_RISK
-
-    scores: dict[str, float] = {}
-    for node in graph.nodes():
-        node_str = str(node)
-
-        degree_norm = graph.degree(node) / max_degree
-        cycle_flag = 1.0 if node_str in cycle_node_set else 0.0
-        shared_device_flag = 1.0 if node_str in shared_device_node_set else 0.0
-
-        in_f = in_flow.get(node_str, 0.0)
-        out_f = out_flow.get(node_str, 0.0)
-        denom = max(in_f, out_f, 1.0)
-        balance_deviation = abs(in_f - out_f) / denom
-
-        transaction_type_risk = type_risk_per_node.get(node_str, _DEFAULT_TYPE_RISK)
-
-        raw = (
-            degree_norm * 0.20
-            + cycle_flag * 0.35
-            + balance_deviation * 0.20
-            + shared_device_flag * 0.10
-            + transaction_type_risk * 0.15
-        )
-        scores[node_str] = _sigmoid(raw)
-
-    return scores
+    node_scores, _ = apply_alert_scores(
+        graph,
+        flatten_alerts(cycles, fanout_nodes, transit_nodes, shared_device_nodes),
+    )
+    return node_scores

@@ -58,7 +58,7 @@ if __name__ == '__main__':
     """Запуск приложения."""
     uvicorn.run(
         app='src.main:app',
-        loop='uvloop',
+        loop='asyncio',
         host=settings.app.host,
         port=settings.app.port,
         reload=settings.app.debug,
