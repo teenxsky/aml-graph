@@ -1,8 +1,8 @@
 import pandas as pd
 
-from src.graph.builder import GraphBuilder
-from src.graph.ibm import normalize_ibm_transactions
-from src.graph.scoring import apply_alert_scores
+from src.modules.graph.analytics.scoring import apply_alert_scores
+from src.modules.graph.parsing.ibm import normalize_ibm_transactions
+from src.modules.graph.services.builder import GraphBuilder
 
 
 def test_build_graph_from_normalized_transactions(ibm_df: pd.DataFrame) -> None:

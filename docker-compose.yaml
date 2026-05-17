@@ -1,6 +1,54 @@
 name: ${APP_NAME}
 
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${AML_DB_USER}
+      POSTGRES_PASSWORD: ${AML_DB_PASSWORD}
+      POSTGRES_DB: ${AML_DB_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - ${AML_DB_PORT}:${AML_DB_PORT}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${AML_DB_USER} -d ${AML_DB_DATABASE} -p ${AML_DB_PORT}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       dockerfile: Dockerfile
@@ -8,11 +56,37 @@ services:
       target: backend
     ports:
       - ${APP_PORT}:${APP_PORT}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     tty: true
     volumes:
       - ./backend:/app
       - ./.env:/app/.env
       - venv:/app/.venv
+      - backend_storage:/app/storage
+
+  worker:
+    build:
+      dockerfile: Dockerfile
+      context: .
+      target: task-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./.env:/app/.env
+      - venv:/app/.venv
+      - backend_storage:/app/storage
 
   frontend:
     build:
@@ -21,7 +95,7 @@ services:
       target: frontend
     ports:
       - ${FRONTEND_PORT}:${FRONTEND_PORT}
-    entrypoint: [ 'npm', 'run', 'dev' ]
+    entrypoint: ['npm', 'run', 'dev']
     environment:
       APP_ENV: ${APP_ENV:-development}
     volumes:
@@ -32,3 +106,7 @@ services:
 volumes:
   venv:
   node_modules:
+  backend_storage:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:

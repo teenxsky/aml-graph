@@ -1,13 +1,16 @@
 from dishka import AsyncContainer, make_async_container
 
-from src.di.providers.graph import GraphProvider
-from src.di.providers.sessions import SessionStoreProvider
+from src.di.providers.database import DatabaseProvider
+from src.di.providers.repositories import RepositoriesProvider
+from src.di.providers.services import ServicesProvider
+from src.di.providers.use_cases import UseCasesProvider
 
 
 def create_container() -> AsyncContainer:
-    """
-    Создаёт и настраивает IoC-контейнер dishka.
-
-    :return: Сконфигурированный AsyncContainer со всеми зарегистрированными провайдерами.
-    """
-    return make_async_container(SessionStoreProvider(), GraphProvider())
+    """Создаёт и возвращает Dishka DI-контейнер приложения."""
+    return make_async_container(
+        DatabaseProvider(),
+        RepositoriesProvider(),
+        ServicesProvider(),
+        UseCasesProvider(),
+    )

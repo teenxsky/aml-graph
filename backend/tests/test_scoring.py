@@ -1,6 +1,6 @@
 import networkx as nx
 
-from src.graph.scoring import apply_alert_scores
+from src.modules.graph.analytics.scoring import apply_alert_scores
 
 
 def test_one_alert_gives_score() -> None:

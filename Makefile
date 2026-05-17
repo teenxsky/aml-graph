@@ -62,6 +62,20 @@ install-frontend: ## Установить frontend зависимости
 run-backend-tests: ## Запустить тесты backend
 	@$(BACKEND_CMD) uv run python -m pytest
 
+.PHONY: generate-migration
+generate-migration: ## Сгенерировать миграцию на основе актуальных моделей
+	@$(BACKEND_CMD) sh -c 'read -p "Введите сообщение миграции: " message && \
+					alembic revision --autogenerate -m "$$message"'
+
+.PHONY: create-migration
+create-migration: ## Создать чистую (пустую) миграцию
+	@$(BACKEND_CMD) sh -c 'read -p "Введите сообщение миграции: " message && \
+					alembic revision -m "$$message"'
+
+.PHONY: migrate
+migrate: ## Запустить процесс миграции БД
+	@$(BACKEND_CMD) alembic upgrade head
+
 
 #--------------- КОМАНДЫ ДЛЯ КОД-СТИЛЯ ---------------#
 

@@ -1,52 +1,108 @@
 import json
+from http import HTTPStatus
 from typing import Annotated
 
-from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from dishka.integrations.fastapi import DishkaRoute, FromDishka, inject
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
-from src.shared.schemas import ColumnMapping, SessionResponse
-from src.usecases.upload_graph import UploadGraphUseCase
+from src.modules.graph.use_cases.process_ibm_graph_pipeline import ProcessIbmGraphPipelineUseCase
+from src.modules.jobs.schemas import JobInfo
+from src.modules.jobs.use_cases.upload_graph import UploadGraphUseCase
+from src.shared.helpers import get_client_ip
+from src.shared.schemas import ColumnMapping
 
 router = APIRouter(route_class=DishkaRoute)
 
 
+@router.post('/upload/ibm')
+@inject
+async def upload_ibm(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    upload_graph_use_case: FromDishka[UploadGraphUseCase],
+    process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
+) -> JobInfo:
+    """Принять IBM AML CSV, поставить в очередь обработки, вернуть job_id."""
+    file_bytes = await file.read()
+
+    if not file_bytes:
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail='File is empty')
+
+    user_ip = get_client_ip(request)
+
+    if not user_ip:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Не удалось определить IP клиента',
+        )
+
+    job_model = await upload_graph_use_case.execute(
+        file_bytes=file_bytes,
+        user_ip=user_ip,
+    )
+
+    if job_model is None:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail='Не удалось загрузить файл и запустить обработку данных',
+        )
+
+    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
+
+    return JobInfo(
+        job_id=job_model.id,
+        status=job_model.status,
+        created_at=job_model.created_at,
+    )
+
+
 @router.post('/upload')
+@inject
 async def upload_csv(
+    request: Request,
     file: Annotated[UploadFile, File()],
     column_mapping: Annotated[str, Form()],
-    use_case: FromDishka[UploadGraphUseCase],
-) -> SessionResponse:
-    """Принимает CSV с транзакциями и возвращает session_id для последующего стриминга."""
+    upload_graph_use_case: FromDishka[UploadGraphUseCase],
+    process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
+) -> JobInfo:
+    """Принять CSV с маппингом колонок, поставить в очередь, вернуть job_id."""
     try:
         mapping = ColumnMapping.model_validate(json.loads(column_mapping))
     except Exception as e:
-        raise HTTPException(status_code=422, detail=f'Невалидный column_mapping: {e}') from e
+        raise HTTPException(
+            status_code=HTTPStatus.UNPROCESSABLE_CONTENT,
+            detail=f'Невалидный column_mapping: {e}',
+        ) from e
 
     file_bytes = await file.read()
+
     if not file_bytes:
-        raise HTTPException(status_code=400, detail='Файл пустой')
+        raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail='Файл пустой')
 
-    try:
-        session_id = use_case.execute(file_bytes, mapping)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f'Ошибка обработки графа: {e}') from e
+    user_ip = get_client_ip(request)
 
-    return SessionResponse(session_id=session_id)
+    if not user_ip:
+        raise HTTPException(
+            status_code=HTTPStatus.FORBIDDEN,
+            detail='Не удалось определить IP клиента',
+        )
 
+    job_model = await upload_graph_use_case.execute(
+        file_bytes=file_bytes,
+        user_ip=user_ip,
+        column_mapping=mapping,
+    )
 
-@router.post('/upload/ibm')
-async def upload_ibm(
-    file: Annotated[UploadFile, File()],
-    use_case: FromDishka[UploadGraphUseCase],
-) -> SessionResponse:
-    """Accept IBM Transactions for AML CSV and create a graph session."""
-    file_bytes = await file.read()
-    if not file_bytes:
-        raise HTTPException(status_code=400, detail='File is empty')
+    if job_model is None:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail='Не удалось загрузить файл и запустить обработку данных',
+        )
 
-    try:
-        session_id = use_case.execute_ibm(file_bytes, file.filename)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f'IBM upload failed: {e}') from e
+    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
 
-    return SessionResponse(session_id=session_id)
+    return JobInfo(
+        job_id=job_model.id,
+        status=job_model.status,
+        created_at=job_model.created_at,
+    )

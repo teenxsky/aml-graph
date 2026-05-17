@@ -1,8 +1,8 @@
 from enum import StrEnum, auto
 
 
-class LogLevelEnum(StrEnum):
-    """Enum для уровня логирования приложения."""
+class UpperCaseEnum(StrEnum):
+    """Enum со значениями в uppercase."""
 
     @staticmethod
     def _generate_next_value_(
@@ -12,6 +12,10 @@ class LogLevelEnum(StrEnum):
         last_values: list[str],
     ) -> str:
         return name.upper()
+
+
+class LogLevelEnum(UpperCaseEnum):
+    """Enum для уровня логирования приложения."""
 
     CRITICAL = auto()
     NOTSET = auto()
