@@ -1,12 +1,12 @@
-from __future__ import annotations
-
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from src.modules.graph.repositories.graph import GraphStoreRepository
 from src.modules.graph.schemas import (
+    AnalysisResultData,
     DetectorResult,
     EdgeChunk,
     EdgeData,
@@ -28,13 +28,22 @@ _POLL_INTERVAL = 1.0
 class StreamGraphUseCase:
     """Генерирует SSE-поток статуса задачи и данных графа."""
 
-    def __init__(self, job_repo: JobRepository, graph_store: GraphStoreRepository) -> None:
-        self._job_repo = job_repo
+    def __init__(self, job_repository: JobRepository, graph_store: GraphStoreRepository) -> None:
+        self._job_repository = job_repository
         self._graph_store = graph_store
 
-    async def execute(self, job_id: str) -> AsyncGenerator[str]:
-        """Точка входа: немедленно обрабатывает терминальные статусы, иначе запускает long-poll."""
-        job = await self._job_repo.get_job(job_id)
+    async def execute(
+        self,
+        job_id: str,
+        clustering: str = 'agc',
+    ) -> AsyncGenerator[str]:
+        """Точка входа: немедленно обрабатывает терминальные статусы, иначе запускает long-poll.
+
+        :param job_id: Идентификатор задачи.
+        :param clustering: Метод кластеризации. Если ``"none"``, событие ``analysis_result``
+                           не эмитируется даже при наличии данных.
+        """
+        job = await self._job_repository.get_job(job_id)
         if job is None:
             yield _event('error', {'message': 'Job not found'})
             return
@@ -44,23 +53,28 @@ class StreamGraphUseCase:
             return
 
         if job.status == JobStatus.COMPLETED:
-            async for chunk in self._stream_graph(job):
+            async for chunk in self._stream_graph(job, clustering=clustering):
                 yield chunk
             return
 
         yield _event('status', {'status': str(job.status), 'job_id': job_id})
-        async for event in self._poll_and_stream(job_id, last_status=job.status):
+        async for event in self._poll_and_stream(
+            job_id,
+            last_status=job.status,
+            clustering=clustering,
+        ):
             yield event
 
     async def _poll_and_stream(
         self,
         job_id: str,
         last_status: JobStatus,
+        clustering: str,
     ) -> AsyncGenerator[str]:
         """Опрашивает БД каждые ~1s, отдаёт status-события и стримит граф по готовности."""
         while True:
             await asyncio.sleep(_POLL_INTERVAL)
-            job = await self._job_repo.get_job(job_id)
+            job = await self._job_repository.get_job(job_id)
             if job is None:
                 yield _event('error', {'message': 'Job disappeared'})
                 return
@@ -70,7 +84,7 @@ class StreamGraphUseCase:
                 yield _event('status', {'status': str(job.status), 'job_id': job_id})
 
             if job.status == JobStatus.COMPLETED:
-                async for chunk in self._stream_graph(job):
+                async for chunk in self._stream_graph(job, clustering=clustering):
                     yield chunk
                 return
 
@@ -78,7 +92,7 @@ class StreamGraphUseCase:
                 yield _event('error', {'message': job.error_msg or 'Unknown error'})
                 return
 
-    async def _stream_graph(self, job: JobModel) -> AsyncGenerator[str]:
+    async def _stream_graph(self, job: JobModel, *, clustering: str) -> AsyncGenerator[str]:
         """Читает граф из LadybugDB и стримит его чанками."""
         if job.ladybug_ref is None:
             yield _event('error', {'message': 'Граф не сохранён: ladybug_ref отсутствует'})
@@ -98,6 +112,14 @@ class StreamGraphUseCase:
                 edge_count=edge_count,
             ).model_dump(),
         )
+
+        # Эмитировать analysis_result если кластеризация была выполнена
+        detector_results: dict[str, Any] = job.detector_results or {}
+        analysis_raw = detector_results.get('__analysis__')
+        if clustering != 'none' and analysis_raw is not None:
+            with contextlib.suppress(Exception):
+                analysis = AnalysisResultData.model_validate(analysis_raw)
+                yield _event('analysis_result', analysis.model_dump())
 
         for i in range(0, node_count, _NODE_BATCH):
             batch = raw_nodes[i : i + _NODE_BATCH]
@@ -151,7 +173,6 @@ class StreamGraphUseCase:
                 ).model_dump(),
             )
 
-        detector_results: dict[str, Any] = job.detector_results or {}
         for pattern_type in ('cycles', 'fanout', 'transit', 'shared_device'):
             items = detector_results.get(pattern_type, [])
             yield _event(
