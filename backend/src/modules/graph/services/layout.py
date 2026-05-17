@@ -1,14 +1,12 @@
-import math
 from typing import Literal
 
 import networkx as nx
+import numpy as np
 
-__all__ = ['compute_graph_layout']
+from src.modules.graph.analytics.clustering import ClusteringResult
+from src.modules.graph.types import AnyGraph, LayoutAlgorithm
 
-LayoutAlgorithm = Literal['forceatlas2', 'spring']
-
-DirectedGraph = nx.DiGraph | nx.MultiDiGraph
-AnyGraph = nx.Graph | nx.MultiGraph | DirectedGraph
+__all__ = ['compute_graph_layout', 'compute_graph_layout_dispatched']
 
 
 def _layout_core(
@@ -61,7 +59,7 @@ def _fill_missing_positions(
     for index, node in enumerate(sorted(missing_nodes, key=str)):
         neighbors = _placed_neighbors(graph, node, result)
 
-        angle = index * math.pi * (3.0 - math.sqrt(5.0))
+        angle = index * np.pi * (3.0 - np.sqrt(5.0))
 
         if neighbors:
             x = sum(pos[0] for pos in neighbors) / len(neighbors)
@@ -73,11 +71,46 @@ def _fill_missing_positions(
             radius = 1.5 * spread
 
         result[str(node)] = (
-            float(x + math.cos(angle) * radius),
-            float(y + math.sin(angle) * radius),
+            float(x + np.cos(angle) * radius),
+            float(y + np.sin(angle) * radius),
         )
 
     return result
+
+
+def compute_graph_layout_dispatched(
+    graph: AnyGraph,
+    *,
+    method: Literal['forceatlas2', 'hierarchical', 'spring'] = 'hierarchical',
+    clustering: ClusteringResult | None = None,
+    **kwargs: object,
+) -> dict[str, tuple[float, float]]:
+    """Универсальный диспетчер для layout алгоритмов.
+
+    Если ``method == "hierarchical"``, ``clustering`` обязателен.
+    Для остальных методов вызывается :func:`compute_graph_layout`.
+
+    :param graph: Граф для укладки.
+    :param method: Алгоритм укладки.
+    :param clustering: Результат кластеризации (обязателен для hierarchical).
+    :raises ValueError: Если method == "hierarchical" и clustering не передан.
+    """
+    if method == 'hierarchical':
+        if clustering is None:
+            raise ValueError('clustering обязателен для метода hierarchical')
+        from src.modules.graph.services.hierarchical_layout import compute_hierarchical_layout
+
+        result = compute_hierarchical_layout(graph, clustering)
+        return {
+            node_id: (
+                float(result.positions[idx, 0]),
+                float(result.positions[idx, 1]),
+            )
+            for node_id, idx in result.node_id_to_index.items()
+        }
+
+    algorithm: LayoutAlgorithm = 'spring' if method == 'spring' else 'forceatlas2'
+    return compute_graph_layout(graph, algorithm=algorithm)
 
 
 def compute_graph_layout(

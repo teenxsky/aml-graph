@@ -183,6 +183,25 @@ class StorageSettings(BaseSettings, env_prefix='STORAGE_'):
     )
 
 
+class ClusteringSettings(BaseSettings, env_prefix='CLUSTERING_'):
+    """Конфигурация кластеризации и иерархического layout."""
+
+    random_state: int = Field(
+        default=42,
+        description='Seed для воспроизводимости AGC/Louvain/KMeans/spring_layout',
+    )
+    agc_max_k: int = Field(
+        default=60,
+        description='Максимальный порядок фильтра для алгоритма AGC',
+        ge=1,
+    )
+    cluster_radius_factor: float = Field(
+        default=0.15,
+        description='Множитель радиуса внутрикластерного layout (radius = sqrt(n) * factor)',
+        gt=0.0,
+    )
+
+
 class Settings(BaseSettings):
     """Главный контейнер конфигурации приложения."""
 
@@ -194,6 +213,7 @@ class Settings(BaseSettings):
     ladybug: LadybugSettings = Field(default_factory=LadybugSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    clustering: ClusteringSettings = Field(default_factory=ClusteringSettings)
 
 
 settings = Settings()

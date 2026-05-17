@@ -1,10 +1,7 @@
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    import networkx as nx
+import networkx as nx
 
 __all__ = ['GraphStoreRepository']
 

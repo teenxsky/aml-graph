@@ -1,27 +1,29 @@
 import json
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Literal
 
-from dishka.integrations.fastapi import DishkaRoute, FromDishka, inject
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from dishka.integrations.fastapi import DishkaRoute, FromDishka
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 
 from src.modules.graph.use_cases.process_ibm_graph_pipeline import ProcessIbmGraphPipelineUseCase
-from src.modules.jobs.schemas import JobInfo
+from src.modules.jobs.schemas import JobCreated
 from src.modules.jobs.use_cases.upload_graph import UploadGraphUseCase
 from src.shared.helpers import get_client_ip
 from src.shared.schemas import ColumnMapping
 
 router = APIRouter(route_class=DishkaRoute)
 
+_ClusteringParam = Literal['agc', 'louvain', 'none']
 
-@router.post('/upload/ibm')
-@inject
+
+@router.post('/graph/processing/ibm')
 async def upload_ibm(
     request: Request,
     file: Annotated[UploadFile, File()],
     upload_graph_use_case: FromDishka[UploadGraphUseCase],
     process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
-) -> JobInfo:
+    clustering: Annotated[_ClusteringParam, Query()] = 'agc',
+) -> JobCreated:
     """Принять IBM AML CSV, поставить в очередь обработки, вернуть job_id."""
     file_bytes = await file.read()
 
@@ -47,24 +49,27 @@ async def upload_ibm(
             detail='Не удалось загрузить файл и запустить обработку данных',
         )
 
-    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
+    await process_ibm_graph_pipeline_use_case.execute(
+        job_model.id,
+        clustering=clustering if clustering != 'none' else None,
+    )
 
-    return JobInfo(
+    return JobCreated(
         job_id=job_model.id,
         status=job_model.status,
         created_at=job_model.created_at,
     )
 
 
-@router.post('/upload')
-@inject
+@router.post('/graph/processing')
 async def upload_csv(
     request: Request,
     file: Annotated[UploadFile, File()],
     column_mapping: Annotated[str, Form()],
     upload_graph_use_case: FromDishka[UploadGraphUseCase],
     process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
-) -> JobInfo:
+    clustering: Annotated[_ClusteringParam, Query()] = 'agc',
+) -> JobCreated:
     """Принять CSV с маппингом колонок, поставить в очередь, вернуть job_id."""
     try:
         mapping = ColumnMapping.model_validate(json.loads(column_mapping))
@@ -99,9 +104,12 @@ async def upload_csv(
             detail='Не удалось загрузить файл и запустить обработку данных',
         )
 
-    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
+    await process_ibm_graph_pipeline_use_case.execute(
+        job_model.id,
+        clustering=clustering if clustering != 'none' else None,
+    )
 
-    return JobInfo(
+    return JobCreated(
         job_id=job_model.id,
         status=job_model.status,
         created_at=job_model.created_at,

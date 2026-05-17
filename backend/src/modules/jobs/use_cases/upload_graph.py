@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import uuid
 
 from src.infrastructure.storage.csv_store import CsvStore

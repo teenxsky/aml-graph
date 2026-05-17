@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from typing import Any
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from src.infrastructure.database.postgres.repository import BaseRepository
 from src.modules.jobs.enums import JobStatus, UploadFormat
@@ -58,9 +56,11 @@ class JobRepository(BaseRepository[JobModel]):
         await self._session.execute(
             update(JobModel).where(JobModel.id == job_id).values(**values),
         )
-        # Commit immediately so SSE stream sees intermediate status changes.
+
         await self._session.commit()
 
     async def get_job(self, job_id: str) -> JobModel | None:
         """Возвращает задачу по ID или None, если не найдена."""
-        return await self._session.get(JobModel, job_id)
+        query = select(JobModel).where(JobModel.id == job_id)
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()
