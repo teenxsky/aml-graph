@@ -1,18 +1,24 @@
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import uvicorn
-from dishka.integrations.fastapi import setup_dishka
+from dishka.integrations.fastapi import setup_dishka as setup_fastapi
 from fastapi import FastAPI
 
 from src.api import get_middlewares, get_root_router
 from src.di.container import create_container
-from src.logging import get_logging_config
+from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.task_queue.setup import setup_taskiq
+from src.logging import get_logging_config, setup_logger
 from src.settings import settings
 
 __all__ = ['app']
 
 ROOT_PATH = '/api'
+
+container = create_container()
+taskiq_broker = rabbitmq_broker
 
 
 def create_app() -> FastAPI:
@@ -22,19 +28,20 @@ def create_app() -> FastAPI:
 
     :return: Настроенное приложение FastAPI
     """
-    container = create_container()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        """
-        Lifespan-контекст FastAPI, управляющий ресурсами приложения.
+        if not taskiq_broker.is_worker_process:
+            await taskiq_broker.startup()
 
-        Вызывается один раз при старте приложения и один раз при его остановке.
-        """
         yield
+
+        if not taskiq_broker.is_worker_process:
+            await taskiq_broker.shutdown()
+
         await container.close()
 
-    fastapi_app: FastAPI = FastAPI(
+    fastapi = FastAPI(
         title=settings.app.name,
         debug=settings.app.debug,
         middleware=get_middlewares(),
@@ -45,20 +52,25 @@ def create_app() -> FastAPI:
         root_path=ROOT_PATH,
     )
 
-    fastapi_app.include_router(get_root_router())
+    fastapi.include_router(get_root_router())
 
-    setup_dishka(container=container, app=fastapi_app)
+    setup_fastapi(app=fastapi, container=container)
+    setup_taskiq(taskiq_broker=taskiq_broker, container=container)
 
-    return fastapi_app
+    return fastapi
 
 
 app: FastAPI = create_app()
 
+
 if __name__ == '__main__':
     """Запуск приложения."""
+    time.tzset()
+    setup_logger()
+
     uvicorn.run(
         app='src.main:app',
-        loop='asyncio',
+        loop='uvloop',
         host=settings.app.host,
         port=settings.app.port,
         reload=settings.app.debug,
