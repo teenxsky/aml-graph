@@ -18,7 +18,7 @@ ENV PYTHONFAULTHANDLER=1 \
 RUN pip install --no-cache-dir uv
 
 
-# ========================= Python App =========================
+# ========================= Python App (backend) =========================
 FROM base-backend AS backend
 WORKDIR /app
 
@@ -38,6 +38,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
 
 ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
+
+
+# ========================= Python App (task worker) =========================
+FROM backend AS task-worker
+WORKDIR /app
+
+ENTRYPOINT ["uv", "run", "taskiq", "worker", "src.task_worker:broker", "-r", "--workers", "2", "--max-threadpool-threads", "4"]
 
 
 # ========================= Frontend App =========================
