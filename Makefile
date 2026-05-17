@@ -32,6 +32,14 @@ build: ## Собрать Docker-образы
 up: ## Запустить все Docker-контейнеры
 	@$(COMPOSE) up -d --remove-orphans
 
+.PHONY: up-backend
+up-backend: ## Запустить backend Docker-контейнер
+	@$(COMPOSE) up -d --remove-orphans backend
+
+.PHONY: up-frontend
+up-frontend: ## Запустить frontend Docker-контейнер
+	@$(COMPOSE) up -d --remove-orphans frontend
+
 .PHONY: down
 down: ## Остановить Docker-контейнеры
 	@$(COMPOSE) down

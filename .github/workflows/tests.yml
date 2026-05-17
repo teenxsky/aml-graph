@@ -27,7 +27,9 @@ jobs:
           echo "USE_MIRROR=${USE_MIRROR}" >> .env
 
       - name: Start services
-        run: make up
+        run: |
+          make up-backend
+          make up-frontend
 
       - name: Run linters
         run: |
