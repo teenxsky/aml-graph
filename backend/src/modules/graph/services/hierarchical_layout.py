@@ -1,4 +1,5 @@
-"""Иерархическая укладка графа с учётом кластерной структуры.
+"""
+Иерархическая укладка графа с учётом кластерной структуры.
 
 Алгоритм:
 
@@ -74,7 +75,7 @@ def compute_hierarchical_layout(
         if cluster_idx is not None:
             node_labels[our_idx] = int(clustering.labels[cluster_idx])
 
-    # ── Шаг 1: мета-граф кластеров ──────────────────────────────────────────
+    # ===== Шаг 1: мета-граф кластеров =====
 
     meta_graph = nx.Graph()
     for c in range(n_clusters):
@@ -94,7 +95,7 @@ def compute_hierarchical_layout(
         else:
             meta_graph.add_edge(cu, cv, weight=1)
 
-    # ── Шаг 2: layout мета-графа ─────────────────────────────────────────────
+    # ===== Шаг 2: layout мета-графа =======─
 
     if n_clusters == 1:
         meta_positions: dict[int, tuple[float, float]] = {0: (0.0, 0.0)}
@@ -108,7 +109,7 @@ def compute_hierarchical_layout(
         )
         meta_positions = {c: (float(pos[0]), float(pos[1])) for c, pos in meta_pos.items()}
 
-    # ── Шаг 3: layout узлов внутри каждого кластера ──────────────────────────
+    # ===== Шаг 3: layout узлов внутри каждого кластера ==========================
 
     positions = np.zeros((n, 2), dtype=np.float32)
     cluster_centroids = np.zeros((n_clusters, 2), dtype=np.float32)
@@ -149,7 +150,7 @@ def compute_hierarchical_layout(
                 if our_idx is not None:
                     positions[our_idx] = (cx + lx, cy + ly)
 
-    # ── Изолированные узлы (label == -1) ─────────────────────────────────────
+    # ===== Изолированные узлы (label == -1) ====================================─
 
     isolated = [i for i in range(n) if node_labels[i] == -1]
     if isolated:
@@ -162,7 +163,7 @@ def compute_hierarchical_layout(
                 periphery_r * np.sin(angle),
             )
 
-    # ── Шаг 5: нормализация в [-1, 1] ────────────────────────────────────────
+    # ===== Шаг 5: нормализация в [-1, 1] ========================================
 
     max_abs = float(np.abs(positions).max())
     if max_abs > 0:
