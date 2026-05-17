@@ -5,16 +5,28 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.18.4",
+    "asyncpg>=0.30.0",
+    "config>=0.5.1",
     "dishka>=1.10.1",
     "fastapi[standard]>=0.136.1",
+    "ladybug>=0.16.1",
     "networkx>=3.6.1",
     "numpy>=2.4.4",
     "pandas>=3.0.2",
+    "psycopg[binary]>=3.3.4",
     "pydantic-settings>=2.14.0",
-    "pydantic[all]>=2.13.3",
+    "pydantic>=2.13.3",
     "python-multipart>=0.0.20",
+    "sqlalchemy[asyncio]>=2.0.49",
     "sse-starlette>=3.4.1",
+    "taskiq[reload]>=0.12.4",
+    "taskiq-aio-pika>=0.6.0",
     "uvicorn>=0.46.0",
+    "uvloop>=0.22.1",
+    "taskiq-pipelines>=0.1.4",
+    "taskiq-redis>=1.2.2",
+    "redis>=7.4.0",
 ]
 
 [dependency-groups]
