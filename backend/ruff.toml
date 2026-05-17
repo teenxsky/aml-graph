@@ -110,3 +110,4 @@ ignore-decorators = ["typing.overload"]
 
 [lint.per-file-ignores]
 "src/di/**/*.py" = ["D101", "D102"]
+"src/modules/graph/*.py" = ["N803", "N806", "C901", "E501"]
