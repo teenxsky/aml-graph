@@ -27,6 +27,8 @@ dependencies = [
     "taskiq-pipelines>=0.1.4",
     "taskiq-redis>=1.2.2",
     "redis>=7.4.0",
+    "scikit-learn>=1.8.0",
+    "scipy>=1.17.1",
 ]
 
 [dependency-groups]
