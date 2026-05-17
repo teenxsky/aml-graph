@@ -68,11 +68,14 @@ def _iter_edges(
 
 
 def detect_cycles(graph: nx.DiGraph, max_delta_seconds: int = 86400) -> list[dict]:
-    """Detect directed transaction cycles of length 2-6.
+    """
+    Обнаруживает циклы направленных транзакций продолжительностью 2-6.
 
-    Each alert includes cycle nodes, transfer edge IDs, time span, total amount,
-    preservation ratio rho = min(amount) / max(amount), and optional drain rate.
-    Cycles outside the configured time window are ignored.
+    Каждое предупреждение содержит узлы цикла, идентификаторы границ передачи, промежуток времени,
+    общую сумму, коэффициент сохранения rho = min(сумма) / max(максимальная сумма) и необязательную
+    скорость утечки.
+
+    Циклы, выходящие за пределы заданного временного окна, игнорируются.
     """
     if len(graph) == 0:
         return []
@@ -227,11 +230,7 @@ def detect_fanout(
 
 
 def detect_transit(graph: nx.DiGraph, top_k: int = 50) -> list[dict]:
-    """Определяет транзитные узлы: высокая betweenness + входящий ≈ исходящий поток.
-
-    Входящий поток вычисляется через amount_received (точный баланс при FX-конвертации),
-    при отсутствии — через amount_paid.
-    """
+    """Определяет транзитные узлы: высокая betweenness + входящий ≈ исходящий поток."""
     if len(graph) == 0:
         return []
 

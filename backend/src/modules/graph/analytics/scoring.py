@@ -31,7 +31,7 @@ def _iter_edges(graph: nx.Graph) -> Iterator[tuple[object, object, object | None
 
 
 def flatten_alerts(*groups: list[dict]) -> list[dict]:
-    """Flatten detector alert groups into one alert list."""
+    """Сводит группы реакций детекторов в один список реакций."""
     alerts = []
     for group in groups:
         alerts.extend(group)
@@ -42,7 +42,7 @@ def apply_alert_scores(
     graph: nx.Graph,
     alerts: list[dict],
 ) -> tuple[dict[str, float], dict[str, float]]:
-    """Apply alert-based risk scores to graph nodes and edges."""
+    """Применяет оценки риска, основанные на предупреждениях, к узлам и ребрам графика."""
     node_alert_scores: dict[str, list[float]] = defaultdict(list)
     edge_alert_scores: dict[str, list[float]] = defaultdict(list)
     node_alert_ids: dict[str, list[str]] = defaultdict(list)
@@ -91,7 +91,7 @@ def compute_scores(
     transit_nodes: list[dict],
     shared_device_nodes: list[dict],
 ) -> dict[str, float]:
-    """Compute node risk scores from detector outputs."""
+    """Вычисляет оценки риска узла на основе выходных данных детектора."""
     if len(graph) == 0:
         return {}
     node_scores, _ = apply_alert_scores(

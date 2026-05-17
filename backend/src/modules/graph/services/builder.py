@@ -3,7 +3,7 @@ import io
 import networkx as nx
 import pandas as pd
 
-from src.graph.layout import compute_graph_layout
+from src.modules.graph.services.layout import compute_graph_layout
 from src.shared.schemas import ColumnMapping
 
 __all__ = ['GraphBuilder']
@@ -30,28 +30,24 @@ def _extract_optional_col(
     col: str | None,
     columns: pd.Index,
 ) -> str | None:
-    """Извлекает значение необязательного столбца CSV, возвращает None если отсутствует или NaN."""
     if col and col in columns and pd.notna(row[col]):
         return str(row[col])
     return None
 
 
 def _resolve_entity_type(node_id: str, row: pd.Series, has_entity_col: bool) -> str:
-    """Возвращает тип сущности из столбца entity_type или по префиксу ID."""
     if has_entity_col and pd.notna(row.get('entity_type')):
         return str(row['entity_type'])
     return _infer_entity_type(node_id)
 
 
 def _build_node_id(row: pd.Series, id_col: str, bank_col: str | None) -> str:
-    """Строит уникальный node_id с учётом банка: «банк_id» или просто «id»."""
     if bank_col and pd.notna(row.get(bank_col)):
         return f'{row[bank_col]}_{row[id_col]}'
     return str(row[id_col])
 
 
 def _parse_is_laundering(value: str | None) -> bool | None:
-    """Парсит флаг отмывания из строкового значения CSV."""
     if value is None:
         return None
     val = value.strip().lower()
@@ -65,8 +61,8 @@ def _parse_is_laundering(value: str | None) -> bool | None:
 class GraphBuilder:
     """Строит граф транзакций NetworkX из CSV или normalized DataFrame."""
 
+    @staticmethod
     def build_from_csv(
-        self,
         file_bytes: bytes,
         column_mapping: ColumnMapping,
     ) -> nx.DiGraph:
@@ -152,8 +148,9 @@ class GraphBuilder:
 
         return graph
 
-    def build_from_normalized_transactions(self, df: pd.DataFrame) -> nx.MultiDiGraph:
-        """Build a transaction multigraph from normalized transaction rows."""
+    @staticmethod
+    def build_from_normalized_transactions(df: pd.DataFrame) -> nx.MultiDiGraph:
+        """Строит мультиграф транзакций из нормализованных записей транзакций."""
         required = {'transaction_id', 'timestamp', 'sender_id', 'receiver_id', 'amount'}
         missing = required - set(df.columns)
         if missing:
@@ -260,10 +257,10 @@ class GraphBuilder:
 
         return graph
 
+    @staticmethod
     def compute_layout(
-        self,
         graph: nx.DiGraph,
         max_nodes: int = 2000,
     ) -> dict[str, tuple[float, float]]:
-        """Compute 2D graph coordinates."""
+        """Вычисляет координаты двумерного графа."""
         return compute_graph_layout(graph, max_nodes=max_nodes)

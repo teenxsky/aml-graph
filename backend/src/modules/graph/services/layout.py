@@ -85,7 +85,10 @@ def compute_graph_layout(
     max_nodes: int = 2000,
     algorithm: LayoutAlgorithm = 'forceatlas2',
 ) -> dict[str, tuple[float, float]]:
-    """Compute graph coordinates with ForceAtlas2 and a spring-layout fallback."""
+    """
+    Вычисляет координаты графа с помощью ForceAtlas2 и
+    резервного варианта с пружинным расположением.
+    """
 
     if len(graph) == 0:
         return {}

@@ -79,7 +79,7 @@ def _parse_is_laundering(values: pd.Series) -> pd.Series:
 
 
 def normalize_ibm_transactions(df: pd.DataFrame) -> pd.DataFrame:
-    """Validate and normalize IBM Transactions for AML rows."""
+    """Проверяет и нормализирует транзакции IBM для строк AML."""
     _validate_columns(df)
     _validate_not_empty(df)
 
@@ -109,10 +109,13 @@ def normalize_ibm_transactions(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def read_ibm_transactions(file_bytes: bytes, filename: str | None = None) -> pd.DataFrame:
-    """Read an IBM CSV file and return normalized transactions."""
+    """Считывает CSV-файл IBM и возвращает нормализованные транзакции."""
     suffix = Path(filename or '').suffix.lower()
+
     if suffix in {'.xlsx', '.xls'}:
         raise ValueError('Excel upload is not enabled; upload IBM data as CSV')
+
     buffer = io.BytesIO(file_bytes)
     df = pd.read_csv(buffer)
+
     return normalize_ibm_transactions(df)

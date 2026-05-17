@@ -45,7 +45,7 @@ def build_graph_payload(
     graph: nx.Graph,
     layout: dict[str, tuple[float, float]],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Build frontend-friendly graph payload with coordinates and risk data."""
+    """Создаёт удобный для интерфейса граф полезной нагрузки с координатами и данными о рисках."""
     nodes = []
     for node_id, attrs in graph.nodes(data=True):
         node_str = str(node_id)
@@ -96,7 +96,7 @@ def build_session_stats(
     graph: nx.Graph,
     alerts: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Build aggregate graph statistics for a session."""
+    """Создаёт сводный граф статистики для сеанса."""
     timestamps = [
         _as_int(d.get('timestamp'))
         for _, _, _, d in _edge_iter(graph)
@@ -125,7 +125,7 @@ def build_session_stats(
 
 
 def collect_filters(graph: nx.Graph, alerts: list[dict[str, Any]]) -> dict[str, list[Any]]:
-    """Collect available filter values from graph attributes and alerts."""
+    """Собирает доступные значения фильтров из атрибутов графа и предупреждений."""
     alert_types = sorted({str(a.get('type')) for a in alerts if a.get('type')})
     payment_formats = sorted(
         {
