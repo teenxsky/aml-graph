@@ -2,10 +2,10 @@ import math
 
 import pandas as pd
 
-from src.graph.builder import GraphBuilder
-from src.graph.ibm import normalize_ibm_transactions
-from src.graph.layout import compute_graph_layout
-from src.graph.serialization import build_graph_payload
+from src.modules.graph.parsing.ibm import normalize_ibm_transactions
+from src.modules.graph.services.builder import GraphBuilder
+from src.modules.graph.services.layout import compute_graph_layout
+from src.modules.graph.services.serialization import build_graph_payload
 
 
 def test_layout_payload_contains_coordinates_and_edges(ibm_df: pd.DataFrame) -> None:

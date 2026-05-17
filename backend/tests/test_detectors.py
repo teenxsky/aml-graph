@@ -1,7 +1,7 @@
 import pandas as pd
 
-from src.graph.builder import GraphBuilder
-from src.graph.detectors import detect_cycles, detect_fanout, detect_shared_device, detect_transit
+from src.modules.graph.analytics.detectors import detect_cycles, detect_fanout, detect_shared_device, detect_transit
+from src.modules.graph.services.builder import GraphBuilder
 
 
 def _graph_from_rows(rows: list[dict]):

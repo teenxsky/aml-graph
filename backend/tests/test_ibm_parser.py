@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.graph.ibm import normalize_ibm_transactions, read_ibm_transactions
+from src.modules.graph.parsing.ibm import normalize_ibm_transactions, read_ibm_transactions
 
 
 def test_ibm_normalization_success(ibm_df: pd.DataFrame) -> None:
