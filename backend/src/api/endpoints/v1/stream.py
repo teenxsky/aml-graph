@@ -1,24 +1,21 @@
-from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, HTTPException
+from dishka.integrations.fastapi import DishkaRoute, FromDishka, inject
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from src.usecases.stream_graph import StreamGraphUseCase
+from src.modules.graph.use_cases.stream_graph import StreamGraphUseCase
 
 router = APIRouter(route_class=DishkaRoute)
 
 
-@router.get('/stream/{session_id}')
+@router.get('/stream/{job_id}')
+@inject
 async def stream_graph(
-    session_id: str,
-    use_case: FromDishka[StreamGraphUseCase],
+    job_id: str,
+    stream_graph_use_case: FromDishka[StreamGraphUseCase],
 ) -> StreamingResponse:
-    """SSE-эндпоинт: стримит метаданные, узлы, рёбра и результаты AML-детекторов."""
-    session = use_case.get_session(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail='Сессия не найдена')
-
+    """SSE-эндпоинт: real-time статус job + чанки графа по завершении."""
     return StreamingResponse(
-        use_case.generate_events(session, session_id),
+        stream_graph_use_case.execute(job_id),
         media_type='text/event-stream',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )
