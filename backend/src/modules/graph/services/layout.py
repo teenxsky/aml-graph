@@ -1,12 +1,10 @@
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import networkx as nx
 import numpy as np
 
+from src.modules.graph.analytics.clustering import ClusteringResult
 from src.modules.graph.types import AnyGraph, LayoutAlgorithm
-
-if TYPE_CHECKING:
-    from src.modules.graph.analytics.clustering import ClusteringResult
 
 __all__ = ['compute_graph_layout', 'compute_graph_layout_dispatched']
 

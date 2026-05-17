@@ -1,13 +1,11 @@
 import json
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import networkx as nx
 import pandas as pd
 
 from src.infrastructure.database.ladybug.base import LadybugBaseRepository
 from src.modules.graph.repositories.graph import GraphStoreRepository
-
-if TYPE_CHECKING:
-    import networkx as nx
 
 __all__ = ['LadybugGraphRepository']
 
