@@ -12,6 +12,8 @@ class JobStatus(UpperCaseEnum):
     DETECTING = auto()
     SCORING = auto()
     LAYOUT = auto()
+    CLUSTERING = auto()
+    HIERARCHICAL_LAYOUT = auto()
     SAVING = auto()
     COMPLETED = auto()
     FAILED = auto()
