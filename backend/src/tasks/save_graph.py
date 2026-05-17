@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import math
 import traceback
@@ -40,6 +38,10 @@ async def save_graph_task(
         )
 
         detector_results = {k: _sanitize(v) for k, v in data['detector_results'].items()}
+
+        # Сохранить результаты кластеризации для SSE-события analysis_result
+        if 'analysis_result' in data:
+            detector_results['__analysis__'] = data['analysis_result']
 
         await job_repository.update_status(
             job_id,
