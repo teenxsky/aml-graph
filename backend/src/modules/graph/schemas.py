@@ -9,6 +9,8 @@ __all__ = [
     'EdgeData',
     'EdgeChunk',
     'DetectorResult',
+    'ClusteringMetadata',
+    'AnalysisResultData',
 ]
 
 
@@ -21,7 +23,11 @@ class GraphMeta(BaseModel):
 
 
 class NodeData(BaseModel):
-    """Один узел графа с макетом и оценочными данными."""
+    """Один узел графа с макетом и оценочными данными.
+
+    Поля ``x`` и ``y`` содержат нормализованные координаты в диапазоне ``[-1, 1]``
+    при использовании иерархического layout. Frontend масштабирует их под размер canvas.
+    """
 
     id: str
     entity_type: str
@@ -68,7 +74,30 @@ class EdgeChunk(BaseModel):
 
 
 class DetectorResult(BaseModel):
-    """Результат обнаружения детекторомШ с указанием типа шаблона и элементов оповещения."""
+    """Результат обнаружения детектором с указанием типа шаблона и элементов оповещения."""
 
     pattern_type: str
     items: list[dict[str, Any]]
+
+
+class ClusteringMetadata(BaseModel):
+    """Метаданные результата кластеризации."""
+
+    method: str
+    n_clusters: int
+    extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnalysisResultData(BaseModel):
+    """Результат аналитического этапа: кластеризация + метаданные layout.
+
+    Эмитируется через SSE после ``graph_meta`` и до ``nodes_chunk``.
+    Содержит метки кластеров для каждого узла и координаты центров кластеров.
+    """
+
+    labels: list[int]
+    node_ids: list[str]
+    cluster_centroids_2d: list[tuple[float, float]]
+    n_clusters: int
+    method: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
