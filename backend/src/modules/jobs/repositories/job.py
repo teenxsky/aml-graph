@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from src.infrastructure.database.postgres.repository import BaseRepository
 from src.modules.jobs.enums import JobStatus, UploadFormat
@@ -64,3 +64,29 @@ class JobRepository(BaseRepository[JobModel]):
         query = select(JobModel).where(JobModel.id == job_id)
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
+
+    async def get_latest_jobs_by_user_ip(
+        self,
+        user_ip: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> tuple[list[JobModel], int]:
+        """Возвращает последние задачи пользователя и общее количество."""
+
+        stmt = (
+            select(JobModel)
+            .where(JobModel.user_ip == user_ip)
+            .order_by(JobModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        count_stmt = select(func.count()).select_from(JobModel).where(JobModel.user_ip == user_ip)
+
+        result = await self._session.execute(stmt)
+        count_result = await self._session.execute(count_stmt)
+
+        jobs = list(result.scalars().all())
+        total = count_result.scalar_one()
+
+        return jobs, total
