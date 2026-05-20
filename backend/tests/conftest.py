@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 from httpx import ASGITransport, AsyncClient
 
-from src.main import app
+from src.app import app
 
 
 def make_csv_bytes(rows: list[dict]) -> bytes:
