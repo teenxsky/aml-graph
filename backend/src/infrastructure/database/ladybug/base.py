@@ -1,6 +1,6 @@
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import ladybug as lb
 import pandas as pd
@@ -51,11 +51,20 @@ class LadybugBaseRepository:
             Path(tmp_path).unlink(missing_ok=True)
 
     def _query(self, db_file: str, cypher: str) -> list[dict[str, Any]]:
-        """Выполните зашифрованный запрос и верните строки в виде dicts."""
+        """Выполнить Cypher-запрос и вернуть строки в виде dicts."""
         _, conn = self._open(db_file)
-        result = conn.execute(cypher)
-        rows = list(result)
-        if not rows:
-            return []
-        headers: list[str] = [str(h) for h in rows[0]]
-        return [dict(zip(headers, row, strict=False)) for row in rows[1:]]
+        raw_result = conn.execute(cypher)
+
+        if isinstance(raw_result, list):
+            if not raw_result:
+                raise ValueError('Запрос вернул пустой список')
+            query_result = raw_result[0]
+        else:
+            query_result = raw_result
+
+        query_result = cast(lb.QueryResult, query_result)
+
+        df = query_result.get_as_df()
+        df.columns = [c.split('.')[-1] for c in df.columns]
+
+        return df.to_dict('records')
