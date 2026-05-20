@@ -42,16 +42,20 @@ CREATE REL TABLE TRANSFER (
 
 _LOAD_NODES_CYPHER = (
     'MATCH (a:Account) RETURN '
-    'a.account_id, a.entity_type, a.in_flow, a.out_flow, '
-    'a.risk_score, a.is_laundering_node, a.x, a.y, a.alerts'
+    'a.account_id AS account_id, a.entity_type AS entity_type, '
+    'a.in_flow AS in_flow, a.out_flow AS out_flow, '
+    'a.risk_score AS risk_score, a.is_laundering_node AS is_laundering_node, '
+    'a.x AS x, a.y AS y, a.alerts AS alerts'
 )
 
 _LOAD_EDGES_CYPHER = (
     'MATCH (a:Account)-[t:TRANSFER]->(b:Account) RETURN '
     'a.account_id AS source, b.account_id AS target, '
-    't.transaction_id, t.amount_paid, t.amount_received, '
-    't.payment_currency, t.receiving_currency, t.payment_format, '
-    't.timestamp, t.is_laundering, t.risk_score, t.alerts'
+    't.transaction_id AS transaction_id, t.amount_paid AS amount_paid, '
+    't.amount_received AS amount_received, t.payment_currency AS payment_currency, '
+    't.receiving_currency AS receiving_currency, t.payment_format AS payment_format, '
+    't.timestamp AS timestamp, t.is_laundering AS is_laundering, '
+    't.risk_score AS risk_score, t.alerts AS alerts'
 )
 
 

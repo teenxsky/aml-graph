@@ -1,5 +1,4 @@
 import logging
-import traceback
 
 from dishka.integrations.taskiq import FromDishka, inject
 
@@ -39,11 +38,11 @@ async def score_and_layout_task(
         graph_artifact_store.save(job_id, data)
         return job_id
 
-    except Exception:
+    except Exception as e:
         logger.exception('score_and_layout_task failed for job %s', job_id)
         await job_repository.update_status(
             job_id,
             JobStatus.FAILED,
-            error_msg=traceback.format_exc(limit=10),
+            error_msg=str(e),
         )
         raise
