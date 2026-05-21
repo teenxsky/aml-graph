@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.api.endpoints.v1 import processing_info, stream, upload
+from src.api.endpoints.v1 import algorithms, entity_types, processing_info, stream, upload
 
 __all__ = ['get_router']
 
@@ -17,6 +17,8 @@ def get_router() -> APIRouter:
     router = APIRouter(prefix=V1_PREFIX)
 
     router.include_router(stream.router, tags=['Graph'])
+    router.include_router(algorithms.router, tags=['Algorithms'])
+    router.include_router(entity_types.router, tags=['Metadata'])
 
     router.include_router(upload.router, tags=['Jobs'])
     router.include_router(processing_info.router, tags=['Jobs'])
