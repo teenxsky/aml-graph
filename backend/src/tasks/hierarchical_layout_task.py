@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime, timezone
 
 import networkx as nx
 from dishka.integrations.taskiq import FromDishka, inject
@@ -15,6 +16,14 @@ __all__ = ['hierarchical_layout_task']
 
 logger = logging.getLogger(__name__)
 
+_ALGORITHM_VERSIONS: dict[str, str] = {
+    'agc': 'Zhang_2019_IJCAI_arXiv:1906.01210',
+    'louvain': 'Blondel_2008_J.Stat.Mech.',
+    'betweenness': 'Brandes_2001_exact;Brandes&Pich_2007_sampling',
+    'pagerank': 'Page&Brin_1998',
+    'hierarchical_layout': 'Fruchterman-Reingold_1991',
+}
+
 
 @rabbitmq_broker.task
 @inject
@@ -27,10 +36,9 @@ async def hierarchical_layout_task(
 
     Координаты сохраняются в ``data['layout']`` (заменяют предыдущий layout)
     в нормализованном диапазоне [-1, 1]. Также сохраняет ``data['analysis_result']``
-    для последующей отправки через SSE.
-
-    :param job_id: Идентификатор задачи.
+    для последующей отправки через SSE, включая структурированные метаданные.
     """
+    started = datetime.now(timezone.utc)
     try:
         await job_repository.update_status(job_id, JobStatus.HIERARCHICAL_LAYOUT)
 
@@ -68,17 +76,63 @@ async def hierarchical_layout_task(
             for c in range(clustering_result.n_clusters)
         ]
 
+        type_centroids_serializable = {
+            entity_type: [float(x), float(y)]
+            for entity_type, (x, y) in layout_result.type_centroids.items()
+        }
+
+        finished = datetime.now(UTC)
+        duration_ms = int((finished - started).total_seconds() * 1000)
+
+        step_timings: list[dict] = data.get('step_timings', [])
+        step_timings.append(
+            {
+                'step': 'hierarchical_layout',
+                'duration_ms': duration_ms,
+                'started_at': started.isoformat(),
+                'finished_at': finished.isoformat(),
+            },
+        )
+
+        total_duration_ms = sum(t['duration_ms'] for t in step_timings)
+
+        # Граф-статистика для метаданных
+        n_nodes = graph.number_of_nodes()
+        n_edges = graph.number_of_edges()
+        density = n_edges / (n_nodes * (n_nodes - 1)) if n_nodes > 1 else 0.0
+
+        strategy = data.get('analysis_strategy', {})
+
+        metadata: dict = {
+            'n_nodes': n_nodes,
+            'n_edges': n_edges,
+            'density': density,
+            'is_directed': graph.is_directed(),
+            'clustering_method': strategy.get('clustering_method', clustering_result.method),
+            'clustering_reason': strategy.get('clustering_reason', ''),
+            'clustering_extra': clustering_result.metadata,
+            'scoring_weights': strategy.get('scoring_weights', {}),
+            'scoring_reason': strategy.get('scoring_reason', ''),
+            'betweenness_exact': strategy.get('betweenness_exact', True),
+            'betweenness_k': strategy.get('betweenness_k', 0),
+            'step_timings': step_timings,
+            'total_duration_ms': total_duration_ms,
+            'algorithm_versions': _ALGORITHM_VERSIONS,
+        }
+
         analysis_result: dict = {
             'labels': labels_ordered,
             'node_ids': node_ids_ordered,
             'cluster_centroids_2d': centroids_serializable,
+            'type_centroids': type_centroids_serializable,
             'n_clusters': clustering_result.n_clusters,
             'method': clustering_result.method,
-            'metadata': clustering_result.metadata,
+            'metadata': metadata,
         }
 
         data['layout'] = layout
         data['analysis_result'] = analysis_result
+        data['step_timings'] = step_timings
         graph_artifact_store.save(job_id, data)
 
         logger.info(

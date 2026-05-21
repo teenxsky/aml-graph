@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from dishka.integrations.taskiq import FromDishka, inject
 
@@ -27,6 +28,7 @@ async def detect_patterns_task(
     graph_artifact_store: FromDishka[GraphArtifactStore],
 ) -> str:
     """Запускает детекторы AML-паттернов (циклы, fanout, транзит, общие устройства)."""
+    started = datetime.now(timezone.utc)
     try:
         await job_repository.update_status(job_id, JobStatus.DETECTING)
 
@@ -38,6 +40,9 @@ async def detect_patterns_task(
         transit = detect_transit(graph)
         shared_device = detect_shared_device(graph)
 
+        finished = datetime.now(timezone.utc)
+        duration_ms = int((finished - started).total_seconds() * 1000)
+
         data['detector_results'] = {
             'cycles': cycles,
             'fanout': fanout,
@@ -45,6 +50,16 @@ async def detect_patterns_task(
             'shared_device': shared_device,
         }
         data['alerts'] = flatten_alerts(cycles, fanout, transit, shared_device)
+
+        step_timings: list[dict] = data.get('step_timings', [])
+        step_timings.append({
+            'step': 'detect_patterns',
+            'duration_ms': duration_ms,
+            'started_at': started.isoformat(),
+            'finished_at': finished.isoformat(),
+        })
+        data['step_timings'] = step_timings
+
         graph_artifact_store.save(job_id, data)
         return job_id
 

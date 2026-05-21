@@ -1,5 +1,5 @@
 import logging
-from typing import Literal
+from datetime import datetime, timezone
 
 from dishka.integrations.taskiq import FromDishka, inject
 
@@ -21,33 +21,43 @@ async def cluster_graph_task(
     job_id: str,
     job_repository: FromDishka[JobRepository],
     graph_artifact_store: FromDishka[GraphArtifactStore],
-    method: Literal['agc', 'louvain'] = 'agc',
-    n_clusters: int | None = None,
 ) -> str:
-    """Кластеризовать граф и сохранить ClusteringResult в artifact store.
+    """Кластеризовать граф методом из analysis_strategy и сохранить результат.
 
-    Выполняется после score_and_layout_task. Результат используется
-    hierarchical_layout_task.
-
-    :param job_id: Идентификатор задачи.
-    :param method: Метод кластеризации.
-    :param n_clusters: Желаемое число кластеров (None — автодетект через eigengap).
+    Выполняется после score_and_layout_task. Метод кластеризации определяется
+    автоматически в select_strategy_task. Результат используется hierarchical_layout_task.
     """
+    started = datetime.now(timezone.utc)
     try:
         await job_repository.update_status(job_id, JobStatus.CLUSTERING)
 
         data = graph_artifact_store.load(job_id)
         graph = data['graph']
 
+        strategy = data.get('analysis_strategy', {})
+        method = strategy.get('clustering_method', 'agc')
+
         clustering_result = cluster_graph(
             graph,
             method=method,
-            n_clusters=n_clusters,
             max_k=settings.clustering.agc_max_k,
             random_state=settings.clustering.random_state,
         )
 
+        finished = datetime.now(timezone.utc)
+        duration_ms = int((finished - started).total_seconds() * 1000)
+
         data['clustering_result'] = clustering_result
+
+        step_timings: list[dict] = data.get('step_timings', [])
+        step_timings.append({
+            'step': 'cluster_graph',
+            'duration_ms': duration_ms,
+            'started_at': started.isoformat(),
+            'finished_at': finished.isoformat(),
+        })
+        data['step_timings'] = step_timings
+
         graph_artifact_store.save(job_id, data)
 
         logger.info(

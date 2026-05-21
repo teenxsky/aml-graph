@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from dishka.integrations.taskiq import FromDishka, inject
 
@@ -26,6 +27,7 @@ async def build_graph_task(
     graph_artifact_store: FromDishka[GraphArtifactStore],
 ) -> str:
     """Парсит CSV и строит NetworkX-граф; результат сохраняет в artifact store."""
+    started = datetime.now(timezone.utc)
     try:
         await job_repository.update_status(job_id, JobStatus.GRAPH_BUILDING)
 
@@ -43,7 +45,18 @@ async def build_graph_task(
             mapping = ColumnMapping.model_validate(job.column_mapping)
             graph = graph_builder.build_from_csv(file_bytes, mapping)
 
-        graph_artifact_store.save(job_id, {'graph': graph})
+        finished = datetime.now(timezone.utc)
+        duration_ms = int((finished - started).total_seconds() * 1000)
+
+        graph_artifact_store.save(job_id, {
+            'graph': graph,
+            'step_timings': [{
+                'step': 'build_graph',
+                'duration_ms': duration_ms,
+                'started_at': started.isoformat(),
+                'finished_at': finished.isoformat(),
+            }],
+        })
         return job_id
 
     except Exception as e:

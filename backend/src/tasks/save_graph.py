@@ -1,5 +1,6 @@
 import logging
 import math
+from datetime import datetime, timezone
 from typing import Any
 
 from dishka.integrations.taskiq import FromDishka, inject
@@ -24,6 +25,7 @@ async def save_graph_task(
     graph_artifact_store: FromDishka[GraphArtifactStore],
 ) -> str:
     """Сохраняет граф в LadybugDB, обновляет статус задачи на COMPLETED и удаляет артефакты."""
+    started = datetime.now(timezone.utc)
     try:
         await job_repository.update_status(job_id, JobStatus.SAVING)
 
@@ -36,11 +38,27 @@ async def save_graph_task(
             data['edge_scores'],
         )
 
+        finished = datetime.now(timezone.utc)
+        duration_ms = int((finished - started).total_seconds() * 1000)
+
+        step_timings: list[dict] = data.get('step_timings', [])
+        step_timings.append({
+            'step': 'save',
+            'duration_ms': duration_ms,
+            'started_at': started.isoformat(),
+            'finished_at': finished.isoformat(),
+        })
+
         detector_results = {k: _sanitize(v) for k, v in data['detector_results'].items()}
 
-        # Сохранить результаты кластеризации для SSE-события analysis_result
         if 'analysis_result' in data:
             detector_results['__analysis__'] = data['analysis_result']
+
+        if step_timings:
+            detector_results['__step_timings__'] = step_timings
+
+        if 'analysis_strategy' in data:
+            detector_results['__analysis_strategy__'] = data['analysis_strategy']
 
         await job_repository.update_status(
             job_id,
