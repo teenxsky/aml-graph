@@ -1,5 +1,3 @@
-from typing import Literal
-
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -14,11 +12,15 @@ router = APIRouter(route_class=DishkaRoute)
 async def stream_graph(
     job_id: UUID4,
     stream_graph_use_case: FromDishka[StreamGraphUseCase],
-    clustering: Literal['agc', 'louvain', 'none'] = 'agc',
 ) -> StreamingResponse:
-    """SSE-эндпоинт: real-time статус job + чанки графа по завершении."""
+    """SSE-эндпоинт: real-time статус job + чанки графа по завершении.
+
+    Алгоритмы кластеризации и скоринга выбираются автоматически на основе
+    характеристик графа. Подробности выбора доступны в метаданных анализа
+    (событие analysis_result.metadata).
+    """
     return StreamingResponse(
-        stream_graph_use_case.execute(str(job_id), clustering=clustering),
+        stream_graph_use_case.execute(str(job_id)),
         media_type='text/event-stream',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )

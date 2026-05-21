@@ -35,14 +35,8 @@ class StreamGraphUseCase:
     async def execute(
         self,
         job_id: str,
-        clustering: str = 'agc',
     ) -> AsyncGenerator[str]:
-        """Точка входа: немедленно обрабатывает терминальные статусы, иначе запускает long-poll.
-
-        :param job_id: Идентификатор задачи.
-        :param clustering: Метод кластеризации. Если ``"none"``, событие ``analysis_result``
-                           не эмитируется даже при наличии данных.
-        """
+        """Точка входа: немедленно обрабатывает терминальные статусы, иначе запускает long-poll."""
         job = await self._job_repository.get_job(job_id)
         if job is None:
             yield _event('error', {'message': 'Job not found'})
@@ -53,23 +47,18 @@ class StreamGraphUseCase:
             return
 
         if job.status == JobStatus.COMPLETED:
-            async for chunk in self._stream_graph(job, clustering=clustering):
+            async for chunk in self._stream_graph(job):
                 yield chunk
             return
 
         yield _event('status', {'status': str(job.status), 'job_id': job_id})
-        async for event in self._poll_and_stream(
-            job_id,
-            last_status=job.status,
-            clustering=clustering,
-        ):
+        async for event in self._poll_and_stream(job_id, last_status=job.status):
             yield event
 
     async def _poll_and_stream(
         self,
         job_id: str,
         last_status: JobStatus,
-        clustering: str,
     ) -> AsyncGenerator[str]:
         """Опрашивает БД каждые ~1s, отдаёт status-события и стримит граф по готовности."""
         while True:
@@ -84,7 +73,7 @@ class StreamGraphUseCase:
                 yield _event('status', {'status': str(job.status), 'job_id': job_id})
 
             if job.status == JobStatus.COMPLETED:
-                async for chunk in self._stream_graph(job, clustering=clustering):
+                async for chunk in self._stream_graph(job):
                     yield chunk
                 return
 
@@ -92,7 +81,7 @@ class StreamGraphUseCase:
                 yield _event('error', {'message': job.error_msg or 'Unknown error'})
                 return
 
-    async def _stream_graph(self, job: JobModel, *, clustering: str) -> AsyncGenerator[str]:
+    async def _stream_graph(self, job: JobModel) -> AsyncGenerator[str]:
         """Читает граф из LadybugDB и стримит его чанками."""
         if job.ladybug_ref is None:
             yield _event('error', {'message': 'Граф не сохранён: ladybug_ref отсутствует'})
@@ -116,7 +105,7 @@ class StreamGraphUseCase:
         # Эмитировать analysis_result если кластеризация была выполнена
         detector_results: dict[str, Any] = job.detector_results or {}
         analysis_raw = detector_results.get('__analysis__')
-        if clustering != 'none' and analysis_raw is not None:
+        if analysis_raw is not None:
             with contextlib.suppress(Exception):
                 analysis = AnalysisResultData.model_validate(analysis_raw)
                 yield _event('analysis_result', analysis.model_dump())
@@ -129,7 +118,8 @@ class StreamGraphUseCase:
                     nodes=[
                         NodeData(
                             id=row['account_id'],
-                            entity_type=row['entity_type'] or 'unknown',
+                            entity_type=row['entity_type'] or 'account',
+                            behavioral_role=row.get('behavioral_role') or 'regular',
                             label=row['account_id'],
                             x=float(row['x'] or 0.0),
                             y=float(row['y'] or 0.0),
@@ -159,9 +149,9 @@ class StreamGraphUseCase:
                             risk_score=float(row['risk_score'] or 0.0),
                             alerts=json.loads(row['alerts'] or '[]'),
                             amount_received=_opt_float(row.get('amount_received')),
-                            payment_currency=row.get('payment_currency') or None,
-                            receiving_currency=row.get('receiving_currency') or None,
-                            payment_format=row.get('payment_format') or None,
+                            payment_currency=_opt_str(row.get('payment_currency')),
+                            receiving_currency=_opt_str(row.get('receiving_currency')),
+                            payment_format=_opt_str(row.get('payment_format')),
                             is_laundering=(
                                 bool(row['is_laundering'])
                                 if row.get('is_laundering') is not None
@@ -191,10 +181,18 @@ def _event(name: str, data: dict) -> str:
     return f'event: {name}\ndata: {json.dumps(data)}\n\n'
 
 
+def _opt_str(val: Any) -> str | None:
+    if val is None or val == '':
+        return None
+    if isinstance(val, float):  # catches NaN from pandas
+        return None
+    return str(val)
+
+
 def _opt_float(val: Any) -> float | None:
     if val is None or val == '':
         return None
     try:
         return float(val)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
