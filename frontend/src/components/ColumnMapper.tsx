@@ -1,8 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Box, Button, Flex, Heading, Select, Table, Text } from '@radix-ui/themes'
 import type { ColumnMapping } from '@/types/api/column-mapping'
+
+interface EntityTypeHint {
+  code: string
+  label_ru: string
+  short_description: string
+}
 
 interface ColumnMapperProps {
   columns: string[]
@@ -18,6 +24,19 @@ const REQUIRED_FIELDS: { key: keyof ColumnMapping; label: string }[] = [
   { key: 'timestamp', label: 'Дата / время' }
 ]
 
+const ENTITY_TYPE_FIELDS: { key: keyof ColumnMapping; label: string; hint: string }[] = [
+  {
+    key: 'sender_entity_type',
+    label: 'Тип отправителя',
+    hint: 'Колонка со значениями: account, individual, business, payment_institution'
+  },
+  {
+    key: 'receiver_entity_type',
+    label: 'Тип получателя',
+    hint: 'Колонка со значениями: account, individual, business, payment_institution'
+  }
+]
+
 const EXTENDED_FIELDS: { key: keyof ColumnMapping; label: string }[] = [
   { key: 'sender_bank', label: 'From Bank (опционально)' },
   { key: 'receiver_bank', label: 'To Bank (опционально)' },
@@ -31,7 +50,28 @@ const EXTENDED_FIELDS: { key: keyof ColumnMapping; label: string }[] = [
 
 const NONE = '__none__'
 
+const FALLBACK_ENTITY_TYPES: EntityTypeHint[] = [
+  { code: 'account', label_ru: 'Счёт', short_description: 'Банковский счёт без явного владельца.' },
+  { code: 'individual', label_ru: 'Физлицо', short_description: 'Физическое лицо — частный клиент банка.' },
+  { code: 'business', label_ru: 'Юрлицо', short_description: 'Юридическое лицо — компания, ИП, ООО.' },
+  {
+    code: 'payment_institution',
+    label_ru: 'Платёжный институт',
+    short_description: 'Платёжный сервис, обменник, эквайер.'
+  }
+]
+
 export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: ColumnMapperProps) {
+  const [entityTypeHints, setEntityTypeHints] = useState<EntityTypeHint[]>(FALLBACK_ENTITY_TYPES)
+
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? ''
+    fetch(`${apiBase}/api/v1/entity-types`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (Array.isArray(data)) setEntityTypeHints(data) })
+      .catch(() => {/* use fallback */})
+  }, [])
+
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>(() => {
     const auto: Partial<ColumnMapping> = {}
     const lc = columns.map(c => c.toLowerCase())
@@ -40,6 +80,8 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
       ['receiver_id', ['receiver_id', 'receiver', 'to', 'target', 'destination']],
       ['amount_paid', ['amount_paid', 'amount', 'value', 'sum', 'transaction_amount']],
       ['timestamp', ['timestamp', 'time', 'date', 'created_at', 'ts']],
+      ['sender_entity_type', ['sender_entity_type', 'sender_type', 'from_type', 'entity_type', 'type']],
+      ['receiver_entity_type', ['receiver_entity_type', 'receiver_type', 'to_type']],
       ['device_id', ['device_id', 'device', 'device_name']],
       ['ip_address', ['ip_address', 'ip', 'ip_addr']],
       ['sender_bank', ['sender_bank', 'from_bank', 'sending_bank']],
@@ -63,17 +105,29 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const { sender_id, receiver_id, amount_paid, timestamp } = mapping
-    if (!sender_id || !receiver_id || !amount_paid || !timestamp) return
-    onSubmit({ sender_id, receiver_id, amount_paid, timestamp, ...mapping })
+    const { sender_id, receiver_id, amount_paid, timestamp, sender_entity_type, receiver_entity_type } = mapping
+    if (!sender_id || !receiver_id || !amount_paid || !timestamp || !sender_entity_type || !receiver_entity_type) return
+    onSubmit({
+      sender_id,
+      receiver_id,
+      amount_paid,
+      timestamp,
+      sender_entity_type,
+      receiver_entity_type,
+      ...mapping
+    })
   }
 
   const isValid = !!(
     mapping.sender_id &&
     mapping.receiver_id &&
     mapping.amount_paid &&
-    mapping.timestamp
+    mapping.timestamp &&
+    mapping.sender_entity_type &&
+    mapping.receiver_entity_type
   )
+
+  const allowedValuesText = entityTypeHints.map(t => `${t.code} (${t.label_ru})`).join(' · ')
 
   return (
     <Flex direction="column" gap="5" style={{ width: '100%' }}>
@@ -155,6 +209,46 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
                       ))}
                     </Select.Content>
                   </Select.Root>
+                </Flex>
+              ))}
+            </Box>
+          </Flex>
+
+          {/* Типы сущностей */}
+          <Flex direction="column" gap="2">
+            <Text
+              size="1"
+              weight="medium"
+              color="gray"
+              style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+            >
+              Типы сущностей
+            </Text>
+            <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              {ENTITY_TYPE_FIELDS.map(({ key, label }) => (
+                <Flex key={key} direction="column" gap="1">
+                  <Text as="label" size="2" weight="medium">
+                    {label}{' '}
+                    <Text size="2" color="red">
+                      *
+                    </Text>
+                  </Text>
+                  <Select.Root
+                    value={(mapping[key] as string | undefined) ?? NONE}
+                    onValueChange={v => handleChange(key, v)}
+                  >
+                    <Select.Trigger placeholder="— выбрать —" style={{ width: '100%' }} />
+                    <Select.Content>
+                      {columns.map(col => (
+                        <Select.Item key={col} value={col}>
+                          {col}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                  <Text size="1" color="gray">
+                    {allowedValuesText}
+                  </Text>
                 </Flex>
               ))}
             </Box>
