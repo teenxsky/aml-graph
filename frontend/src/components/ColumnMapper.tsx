@@ -52,8 +52,16 @@ const NONE = '__none__'
 
 const FALLBACK_ENTITY_TYPES: EntityTypeHint[] = [
   { code: 'account', label_ru: 'Счёт', short_description: 'Банковский счёт без явного владельца.' },
-  { code: 'individual', label_ru: 'Физлицо', short_description: 'Физическое лицо — частный клиент банка.' },
-  { code: 'business', label_ru: 'Юрлицо', short_description: 'Юридическое лицо — компания, ИП, ООО.' },
+  {
+    code: 'individual',
+    label_ru: 'Физлицо',
+    short_description: 'Физическое лицо — частный клиент банка.'
+  },
+  {
+    code: 'business',
+    label_ru: 'Юрлицо',
+    short_description: 'Юридическое лицо — компания, ИП, ООО.'
+  },
   {
     code: 'payment_institution',
     label_ru: 'Платёжный институт',
@@ -67,9 +75,13 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? ''
     fetch(`${apiBase}/api/v1/entity-types`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (Array.isArray(data)) setEntityTypeHints(data) })
-      .catch(() => {/* use fallback */})
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (Array.isArray(data)) setEntityTypeHints(data)
+      })
+      .catch(() => {
+        /* use fallback */
+      })
   }, [])
 
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>(() => {
@@ -80,7 +92,10 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
       ['receiver_id', ['receiver_id', 'receiver', 'to', 'target', 'destination']],
       ['amount_paid', ['amount_paid', 'amount', 'value', 'sum', 'transaction_amount']],
       ['timestamp', ['timestamp', 'time', 'date', 'created_at', 'ts']],
-      ['sender_entity_type', ['sender_entity_type', 'sender_type', 'from_type', 'entity_type', 'type']],
+      [
+        'sender_entity_type',
+        ['sender_entity_type', 'sender_type', 'from_type', 'entity_type', 'type']
+      ],
       ['receiver_entity_type', ['receiver_entity_type', 'receiver_type', 'to_type']],
       ['device_id', ['device_id', 'device', 'device_name']],
       ['ip_address', ['ip_address', 'ip', 'ip_addr']],
@@ -105,8 +120,23 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const { sender_id, receiver_id, amount_paid, timestamp, sender_entity_type, receiver_entity_type } = mapping
-    if (!sender_id || !receiver_id || !amount_paid || !timestamp || !sender_entity_type || !receiver_entity_type) return
+    const {
+      sender_id,
+      receiver_id,
+      amount_paid,
+      timestamp,
+      sender_entity_type,
+      receiver_entity_type
+    } = mapping
+    if (
+      !sender_id ||
+      !receiver_id ||
+      !amount_paid ||
+      !timestamp ||
+      !sender_entity_type ||
+      !receiver_entity_type
+    )
+      return
     onSubmit({
       sender_id,
       receiver_id,

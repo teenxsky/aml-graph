@@ -12,6 +12,8 @@ router = APIRouter()
 
 
 class CategoryDescription(BaseModel):
+    """Описание категории сущности или поведенческой роли."""
+
     code: str
     label_ru: str
     short_description: str

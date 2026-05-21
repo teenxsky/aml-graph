@@ -14,12 +14,12 @@ const STEP_LABELS: Record<string, string> = {
   layout: 'Базовый layout',
   cluster_graph: 'Кластеризация',
   hierarchical_layout: 'Иерархический layout',
-  save: 'Сохранение',
+  save: 'Сохранение'
 }
 
 const METHOD_IDS: Record<string, string[]> = {
   agc: ['agc', 'risk_scoring', 'hierarchical_layout'],
-  louvain: ['louvain', 'risk_scoring', 'hierarchical_layout'],
+  louvain: ['louvain', 'risk_scoring', 'hierarchical_layout']
 }
 
 interface AlgorithmCardProps {
@@ -35,7 +35,7 @@ function AlgorithmCard({ algo, reason }: AlgorithmCardProps) {
       style={{
         border: '1px solid var(--gray-4)',
         borderRadius: 'var(--radius-2)',
-        overflow: 'hidden',
+        overflow: 'hidden'
       }}
     >
       <Flex
@@ -64,7 +64,7 @@ function AlgorithmCard({ algo, reason }: AlgorithmCardProps) {
               background: 'var(--accent-2)',
               borderRadius: 'var(--radius-1)',
               padding: '4px 8px',
-              marginTop: 2,
+              marginTop: 2
             }}
           >
             <Text size="1" color="blue">
@@ -79,7 +79,7 @@ function AlgorithmCard({ algo, reason }: AlgorithmCardProps) {
           style={{
             borderTop: '1px solid var(--gray-4)',
             background: 'var(--gray-1)',
-            padding: '10px 12px',
+            padding: '10px 12px'
           }}
         >
           <Flex direction="column" gap="2">
@@ -91,7 +91,12 @@ function AlgorithmCard({ algo, reason }: AlgorithmCardProps) {
                 <Text size="1" color="gray" weight="medium">
                   Сложность:
                 </Text>
-                <Badge size="1" variant="soft" color="gray" style={{ fontFamily: 'var(--font-mono)' }}>
+                <Badge
+                  size="1"
+                  variant="soft"
+                  color="gray"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
                   {algo.complexity}
                 </Badge>
               </Flex>
@@ -131,7 +136,7 @@ function StepBar({ timing, totalMs }: { timing: StepTiming; totalMs: number }) {
           height: 6,
           borderRadius: 3,
           background: 'var(--gray-4)',
-          overflow: 'hidden',
+          overflow: 'hidden'
         }}
       >
         <Box
@@ -139,7 +144,7 @@ function StepBar({ timing, totalMs }: { timing: StepTiming; totalMs: number }) {
             height: '100%',
             width: `${Math.max(pct, 1)}%`,
             background: 'var(--accent-9)',
-            borderRadius: 3,
+            borderRadius: 3
           }}
         />
       </Box>
@@ -174,7 +179,8 @@ export default function AnalysisMetadataPanel({ metadata }: Props) {
   const clusteringAlgoId = metadata.clustering_method
   const relevantAlgoIds = METHOD_IDS[clusteringAlgoId] ?? [clusteringAlgoId]
 
-  const totalMs = metadata.total_duration_ms || metadata.step_timings.reduce((s, t) => s + t.duration_ms, 0)
+  const totalMs =
+    metadata.total_duration_ms || metadata.step_timings.reduce((s, t) => s + t.duration_ms, 0)
 
   return (
     <Flex direction="column" gap="3" p="3">
@@ -324,7 +330,11 @@ export default function AnalysisMetadataPanel({ metadata }: Props) {
                 <Text size="1" weight="medium" style={{ fontFamily: 'var(--font-mono)' }}>
                   {algo}
                 </Text>
-                <Text size="1" color="gray" style={{ fontStyle: 'italic', wordBreak: 'break-word' }}>
+                <Text
+                  size="1"
+                  color="gray"
+                  style={{ fontStyle: 'italic', wordBreak: 'break-word' }}
+                >
                   {ref}
                 </Text>
               </Flex>

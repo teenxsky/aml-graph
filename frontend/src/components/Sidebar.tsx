@@ -189,7 +189,6 @@ export default function Sidebar({
 
       <ScrollArea style={{ flex: 1 }}>
         <Flex direction="column" gap="1" p="3">
-
           {/* Тип сущности */}
           {entityGroups && entityGroups.length > 0 && (
             <>

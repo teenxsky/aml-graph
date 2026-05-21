@@ -78,8 +78,8 @@ class GraphBuilder:
         df = pd.read_csv(io.BytesIO(file_bytes))
         graph = nx.DiGraph()
 
-        for idx, row in df.iterrows():
-            row_num = int(idx) + 2  # CSV row number: +1 for 1-index, +1 for header
+        for row_num_0, (_, row) in enumerate(df.iterrows()):
+            row_num = row_num_0 + 2  # CSV row number: +1 for 1-index, +1 for header
 
             sender = _build_node_id(row, column_mapping.sender_id, column_mapping.sender_bank)
             receiver = _build_node_id(row, column_mapping.receiver_id, column_mapping.receiver_bank)
@@ -146,8 +146,8 @@ class GraphBuilder:
             graph.add_edge(
                 sender,
                 receiver,
-                id=f'tx_{idx}',
-                transaction_id=f'tx_{idx}',
+                id=f'tx_{row_num_0}',
+                transaction_id=f'tx_{row_num_0}',
                 amount_paid=amount_paid,
                 amount=amount_paid,
                 amount_received=amount_received,
@@ -180,7 +180,8 @@ class GraphBuilder:
 
         graph = nx.MultiDiGraph()
 
-        for idx, row in df.iterrows():
+        for row_num_0, (_, row) in enumerate(df.iterrows()):
+            row_num = row_num_0 + 2  # CSV row number: +1 for 1-index, +1 for header
             sender = str(row['sender_id'])
             receiver = str(row['receiver_id'])
             transaction_id = str(row['transaction_id'])
@@ -211,7 +212,7 @@ class GraphBuilder:
                         is_laundering_node=False,
                     )
                 else:
-                    _apply_entity_type(graph, node_id, entity_type, int(idx) + 2)
+                    _apply_entity_type(graph, node_id, entity_type, row_num)
 
             amount_received = (
                 float(row['amount_received'])

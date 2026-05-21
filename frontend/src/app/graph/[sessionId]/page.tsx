@@ -11,11 +11,7 @@ import type { EdgeData } from '@/types/graph/edge'
 import type { GraphMeta } from '@/types/graph/meta'
 import type { DetectorResult } from '@/types/graph/detector'
 import type { StreamStage } from '@/types/graph/stream'
-import type {
-  AnalysisResult,
-  ClusteringResult,
-  NodeScoringResult,
-} from '@/types/graph/analysis'
+import type { AnalysisResult, ClusteringResult, NodeScoringResult } from '@/types/graph/analysis'
 import StreamProgress from '@/components/StreamProgress'
 import Sidebar from '@/components/Sidebar'
 import DetailPanel from '@/components/DetailPanel'
@@ -343,9 +339,7 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
           }}
         >
           {/* Tab bar */}
-          <Flex
-            style={{ borderBottom: '1px solid var(--gray-4)', flexShrink: 0 }}
-          >
+          <Flex style={{ borderBottom: '1px solid var(--gray-4)', flexShrink: 0 }}>
             {(['clusters', 'metadata'] as const).map(tab => (
               <Box
                 key={tab}
@@ -355,9 +349,10 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
                   padding: '6px 4px',
                   textAlign: 'center',
                   cursor: 'pointer',
-                  borderBottom: rightTab === tab ? '2px solid var(--accent-9)' : '2px solid transparent',
+                  borderBottom:
+                    rightTab === tab ? '2px solid var(--accent-9)' : '2px solid transparent',
                   background: rightTab === tab ? 'var(--accent-2)' : undefined,
-                  transition: 'background 150ms',
+                  transition: 'background 150ms'
                 }}
               >
                 <Text
@@ -414,7 +409,9 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
                             transition: 'background 150ms',
                             opacity: focusCluster !== null && focusCluster !== row.id ? 0.5 : 1
                           }}
-                          className={focusCluster === row.id ? undefined : 'hover:bg-[var(--gray-3)]'}
+                          className={
+                            focusCluster === row.id ? undefined : 'hover:bg-[var(--gray-3)]'
+                          }
                         >
                           <Flex align="center" gap="2">
                             <div
@@ -438,7 +435,11 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
                               <Badge
                                 size="1"
                                 color={
-                                  row.meanRisk > 0.7 ? 'red' : row.meanRisk > 0.4 ? 'amber' : 'green'
+                                  row.meanRisk > 0.7
+                                    ? 'red'
+                                    : row.meanRisk > 0.4
+                                      ? 'amber'
+                                      : 'green'
                                 }
                                 variant="soft"
                               >
@@ -459,9 +460,7 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             </ScrollArea>
           ) : (
             <ScrollArea scrollbars="vertical" style={{ flex: 1 }}>
-              <AnalysisMetadataPanel
-                metadata={analysisResult?.clustering?.metadata ?? null}
-              />
+              <AnalysisMetadataPanel metadata={analysisResult?.clustering?.metadata ?? null} />
             </ScrollArea>
           )}
         </Flex>

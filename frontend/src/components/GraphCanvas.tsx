@@ -10,15 +10,15 @@ import type { ClusteringResult, NodeScoringResult } from '@/types/graph/analysis
 
 // Entity type: primary colour for cosmos.gl points and canvas overlay.
 const ENTITY_RGB: Record<string, [number, number, number]> = {
-  account: [102 / 255, 187 / 255, 106 / 255],             // #66bb6a — счёт
-  individual: [79 / 255, 195 / 255, 247 / 255],            // #4fc3f7 — физлицо
-  business: [255 / 255, 167 / 255, 38 / 255],              // #ffa726 — юрлицо
-  payment_institution: [171 / 255, 71 / 255, 188 / 255],   // #ab47bc — платёжный институт
+  account: [102 / 255, 187 / 255, 106 / 255], // #66bb6a — счёт
+  individual: [79 / 255, 195 / 255, 247 / 255], // #4fc3f7 — физлицо
+  business: [255 / 255, 167 / 255, 38 / 255], // #ffa726 — юрлицо
+  payment_institution: [171 / 255, 71 / 255, 188 / 255], // #ab47bc — платёжный институт
   // backward compat for old data
   client: [79 / 255, 195 / 255, 247 / 255],
   company: [255 / 255, 167 / 255, 38 / 255],
   device: [171 / 255, 71 / 255, 188 / 255],
-  unknown: [107 / 255, 114 / 255, 128 / 255]               // #6b7280
+  unknown: [107 / 255, 114 / 255, 128 / 255] // #6b7280
 }
 
 const ENTITY_HEX: Record<string, string> = {
@@ -55,13 +55,6 @@ const ROLE_ICONS: Record<string, { symbol: string; color: string }> = {
   transit: { symbol: '⇄', color: '#ff9f0a' },
   isolated: { symbol: '·', color: '#9ca3af' }
   // regular — без значка
-}
-
-const PATTERN_HEX: Record<string, string> = {
-  cycles: '#ff453a',
-  fanout: '#ff9f0a',
-  transit: '#ffd60a',
-  shared_device: '#bf5af2'
 }
 
 const COLOR_FRAUD: [number, number, number] = [239 / 255, 68 / 255, 68 / 255]
@@ -448,12 +441,24 @@ export default function GraphCanvas({
     onNodeClickRef.current = onNodeClick
   })
 
-  useEffect(() => { typeCentroidsRef.current = typeCentroids ?? {} }, [typeCentroids])
-  useEffect(() => { nodePatternsRef.current = nodePatterns ?? new Map() }, [nodePatterns])
-  useEffect(() => { selectedNodeIdRef.current = selectedNodeId ?? null }, [selectedNodeId])
-  useEffect(() => { hiddenRef.current = hiddenEntityTypes }, [hiddenEntityTypes])
-  useEffect(() => { hiddenBehavioralRolesRef.current = hiddenBehavioralRoles ?? new Set() }, [hiddenBehavioralRoles])
-  useEffect(() => { focusNeighborsRef.current = effectiveFocusNeighbors }, [effectiveFocusNeighbors])
+  useEffect(() => {
+    typeCentroidsRef.current = typeCentroids ?? {}
+  }, [typeCentroids])
+  useEffect(() => {
+    nodePatternsRef.current = nodePatterns ?? new Map()
+  }, [nodePatterns])
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId ?? null
+  }, [selectedNodeId])
+  useEffect(() => {
+    hiddenRef.current = hiddenEntityTypes
+  }, [hiddenEntityTypes])
+  useEffect(() => {
+    hiddenBehavioralRolesRef.current = hiddenBehavioralRoles ?? new Set()
+  }, [hiddenBehavioralRoles])
+  useEffect(() => {
+    focusNeighborsRef.current = effectiveFocusNeighbors
+  }, [effectiveFocusNeighbors])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
@@ -609,7 +614,15 @@ export default function GraphCanvas({
 
     g.setPointPositions(positions)
     g.setPointColors(
-      buildColors(nodes, validEdges, hiddenEntityTypes, hiddenRoles, highlightedNodeIds, clusterMap, focusCluster)
+      buildColors(
+        nodes,
+        validEdges,
+        hiddenEntityTypes,
+        hiddenRoles,
+        highlightedNodeIds,
+        clusterMap,
+        focusCluster
+      )
     )
     g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
     g.setPointShapes(new Float32Array(nodes.length))
@@ -649,7 +662,15 @@ export default function GraphCanvas({
     const hiddenRoles = hiddenBehavioralRoles ?? new Set<string>()
 
     g.setPointColors(
-      buildColors(nodes, validEdges, hiddenEntityTypes, hiddenRoles, effectiveHighlight, clusterMap, focusCluster)
+      buildColors(
+        nodes,
+        validEdges,
+        hiddenEntityTypes,
+        hiddenRoles,
+        effectiveHighlight,
+        clusterMap,
+        focusCluster
+      )
     )
     g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
     g.setLinkColors(buildLinkColors(validEdges, idxMap, nodes, effectiveHighlight))
@@ -779,7 +800,8 @@ export default function GraphCanvas({
                     color: ROLE_ICONS[behavioralRole]?.color ?? '#6b7280'
                   }}
                 >
-                  {ROLE_ICONS[behavioralRole]?.symbol} {ROLE_LABELS[behavioralRole] ?? behavioralRole}
+                  {ROLE_ICONS[behavioralRole]?.symbol}{' '}
+                  {ROLE_LABELS[behavioralRole] ?? behavioralRole}
                 </Badge>
               )}
               {hovered.node.is_laundering_node && (
