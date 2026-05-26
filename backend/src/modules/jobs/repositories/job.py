@@ -61,7 +61,7 @@ class JobRepository(BaseRepository[JobModel]):
 
     async def get_job(self, job_id: str) -> JobModel | None:
         """Возвращает задачу по ID или None, если не найдена."""
-        query = select(JobModel).where(JobModel.id == job_id)
+        query = select(JobModel).where(JobModel.id == job_id).execution_options(populate_existing=True)
         result = await self._session.execute(query)
         return result.scalar_one_or_none()
 
