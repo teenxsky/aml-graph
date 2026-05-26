@@ -127,9 +127,6 @@ class RabbitMQSettings(BaseSettings, env_prefix='RABBITMQ_'):
     password: str = Field(
         description='Пароль пользователя RabbitMQ',
     )
-    mbws_exchange: str = Field(
-        description='Имя exchange для приложения',
-    )
 
     @property
     def dsn(self) -> AmqpDsn:

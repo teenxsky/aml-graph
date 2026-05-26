@@ -1,9 +1,9 @@
 import json
 from http import HTTPStatus
-from typing import Annotated, Literal
+from typing import Annotated
 
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from src.modules.graph.use_cases.process_ibm_graph_pipeline import ProcessIbmGraphPipelineUseCase
 from src.modules.jobs.schemas import JobCreated
@@ -13,8 +13,6 @@ from src.shared.schemas import ColumnMapping, ResponseDTO
 
 router = APIRouter(route_class=DishkaRoute)
 
-_ClusteringParam = Literal['agc', 'louvain', 'none']
-
 
 @router.post('/graph/processing/ibm')
 async def upload_ibm(
@@ -22,9 +20,11 @@ async def upload_ibm(
     file: Annotated[UploadFile, File()],
     upload_graph_use_case: FromDishka[UploadGraphUseCase],
     process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
-    clustering: Annotated[_ClusteringParam, Query()] = 'agc',
 ) -> ResponseDTO[JobCreated]:
-    """Принять IBM AML CSV, поставить в очередь обработки, вернуть job_id."""
+    """Принять IBM AML CSV, поставить в очередь обработки, вернуть job_id.
+
+    Алгоритм кластеризации выбирается автоматически на основе размера графа.
+    """
     file_bytes = await file.read()
 
     if not file_bytes:
@@ -49,10 +49,7 @@ async def upload_ibm(
             detail='Не удалось загрузить файл и запустить обработку данных',
         )
 
-    await process_ibm_graph_pipeline_use_case.execute(
-        job_model.id,
-        clustering=clustering if clustering != 'none' else None,
-    )
+    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
 
     return ResponseDTO(
         data=JobCreated(
@@ -70,9 +67,11 @@ async def upload_csv(
     column_mapping: Annotated[str, Form()],
     upload_graph_use_case: FromDishka[UploadGraphUseCase],
     process_ibm_graph_pipeline_use_case: FromDishka[ProcessIbmGraphPipelineUseCase],
-    clustering: Annotated[_ClusteringParam, Query()] = 'agc',
 ) -> ResponseDTO[JobCreated]:
-    """Принять CSV с маппингом колонок, поставить в очередь, вернуть job_id."""
+    """Принять CSV с маппингом колонок, поставить в очередь, вернуть job_id.
+
+    Алгоритм кластеризации выбирается автоматически на основе размера графа.
+    """
     try:
         mapping = ColumnMapping.model_validate(json.loads(column_mapping))
     except Exception as e:
@@ -106,10 +105,7 @@ async def upload_csv(
             detail='Не удалось загрузить файл и запустить обработку данных',
         )
 
-    await process_ibm_graph_pipeline_use_case.execute(
-        job_model.id,
-        clustering=clustering if clustering != 'none' else None,
-    )
+    await process_ibm_graph_pipeline_use_case.execute(job_model.id)
 
     return ResponseDTO(
         data=JobCreated(

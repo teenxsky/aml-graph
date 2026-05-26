@@ -1,13 +1,13 @@
 export interface NodeData {
   id: string
+  /** Онтологическая категория: account | individual | business | payment_institution */
   entity_type: string
+  /** Поведенческая роль в графе: regular | hub | transit | isolated */
+  behavioral_role: string
   type?: string | null
   label?: string | null
-  /** @deprecated Frontend computes GPU layout via cosmos.gl cluster API */
   x?: number | null
-  /** @deprecated Frontend computes GPU layout via cosmos.gl cluster API */
   y?: number | null
-  /** @deprecated Lives in AnalysisResult.node_scoring.scores; kept for legacy mode */
   risk_score?: number | null
   alerts: string[]
   in_flow: number

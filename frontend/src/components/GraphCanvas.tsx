@@ -8,47 +8,59 @@ import type { NodeData } from '@/types/graph/node'
 import type { EdgeData } from '@/types/graph/edge'
 import type { ClusteringResult, NodeScoringResult } from '@/types/graph/analysis'
 
-// All RGB values normalised to [0,1] — cosmos.gl shaders clamp gl_FragColor,
-// so raw 0-255 integers would collapse to white.
-
 const ENTITY_RGB: Record<string, [number, number, number]> = {
-  client: [91 / 255, 156 / 255, 246 / 255], // #5B9CF6 periwinkle blue
-  account: [167 / 255, 139 / 255, 250 / 255], // #A78BFA violet
-  company: [251 / 255, 146 / 255, 60 / 255], // #FB923C warm orange
-  device: [244 / 255, 114 / 255, 182 / 255], // #F472B6 rose/pink
-  unknown: [148 / 255, 163 / 255, 184 / 255] // #94A3B8 cool slate
+  account: [102 / 255, 187 / 255, 106 / 255], // #66bb6a - счёт
+  individual: [79 / 255, 195 / 255, 247 / 255], // #4fc3f7 - физлицо
+  business: [255 / 255, 167 / 255, 38 / 255], // #ffa726 - юрлицо
+  payment_institution: [171 / 255, 71 / 255, 188 / 255], // #ab47bc - платёжный институт
+  // backward compat for old data
+  client: [79 / 255, 195 / 255, 247 / 255],
+  company: [255 / 255, 167 / 255, 38 / 255],
+  device: [171 / 255, 71 / 255, 188 / 255],
+  unknown: [107 / 255, 114 / 255, 128 / 255] // #6b7280
 }
 
-// 16 perceptually separated hues, all vibrant on dark background.
-// Extend this array if the graph has >16 clusters.
-const CLUSTER_PALETTE: [number, number, number][] = [
-  [66, 153, 225], // #4299E1 sky-blue
-  [159, 122, 234], // #9F7AEA purple
-  [56, 178, 172], // #38B2AC teal
-  [237, 100, 166], // #ED64A6 pink
-  [237, 137, 54], // #ED8936 amber-orange
-  [72, 187, 120], // #48BB78 emerald
-  [102, 126, 234], // #667EEA indigo
-  [246, 173, 85], // #F6AD55 gold
-  [118, 228, 247], // #76E4F7 sky
-  [252, 129, 129], // #FC8181 salmon
-  [104, 211, 145], // #68D391 mint
-  [183, 148, 244], // #B794F4 violet-light
-  [250, 240, 137], // #FAF089 lemon
-  [154, 230, 180], // #9AE6B4 seafoam
-  [251, 182, 206], // #FBB6CE blush
-  [129, 230, 217] // #81E6D9 cyan-teal
-].map(([r, g, b]) => [r / 255, g / 255, b / 255]) as [number, number, number][]
+const ENTITY_HEX: Record<string, string> = {
+  account: '#66bb6a',
+  individual: '#4fc3f7',
+  business: '#ffa726',
+  payment_institution: '#ab47bc',
+  client: '#4fc3f7',
+  company: '#ffa726',
+  device: '#ab47bc',
+  unknown: '#6b7280'
+}
 
-const COLOR_FRAUD: [number, number, number] = [239 / 255, 68 / 255, 68 / 255] // #EF4444
-const COLOR_FOCUS: [number, number, number] = [0 / 255, 229 / 255, 255 / 255] // #00E5FF
+const ENTITY_LABELS: Record<string, string> = {
+  account: 'Счета',
+  individual: 'Физлица',
+  business: 'Юрлица',
+  payment_institution: 'Платёжные институты',
+  client: 'Клиенты',
+  company: 'Юрлица',
+  device: 'Устройства',
+  unknown: 'Прочее'
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  hub: 'Концентратор',
+  transit: 'Транзитный',
+  isolated: 'Одиночный',
+  regular: 'Обычный'
+}
+
+const ROLE_ICONS: Record<string, { symbol: string; color: string }> = {
+  hub: { symbol: '◉', color: '#ff453a' },
+  transit: { symbol: '⇄', color: '#ff9f0a' },
+  isolated: { symbol: '·', color: '#9ca3af' }
+}
+
+const COLOR_FRAUD: [number, number, number] = [239 / 255, 68 / 255, 68 / 255]
+const COLOR_FOCUS: [number, number, number] = [0 / 255, 229 / 255, 255 / 255]
 const COLOR_EDGE_DEFAULT = [58 / 255, 70 / 255, 90 / 255, 0.55] as const
 
 const SPACE_SIZE = 8192
-
-function clusterRGB(id: number): [number, number, number] {
-  return CLUSTER_PALETTE[id % CLUSTER_PALETTE.length]
-}
+const SPACE_HALF = SPACE_SIZE / 2
 
 function buildDegreeMap(nodes: NodeData[], edges: EdgeData[]): Map<string, number> {
   const degree = new Map<string, number>()
@@ -60,10 +72,16 @@ function buildDegreeMap(nodes: NodeData[], edges: EdgeData[]): Map<string, numbe
   return degree
 }
 
+function computeLinkWidth(e: EdgeData): number {
+  if (!e.amount_paid || e.amount_paid <= 0) return 1
+  return Math.max(1, Math.log10(e.amount_paid / 8000 + 1) * 2.5)
+}
+
 function buildColors(
   nodes: NodeData[],
   edges: EdgeData[],
   hidden: Set<string>,
+  hiddenBehavioralRoles: Set<string>,
   highlighted: Set<string> | null,
   clusterMap: Map<string, number> | null,
   focusCluster: number | null
@@ -75,36 +93,35 @@ function buildColors(
   const arr = new Float32Array(nodes.length * 4)
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i]
-    const isHidden = hidden.has(n.entity_type)
+    const isHidden = hidden.has(n.entity_type) || hiddenBehavioralRoles.has(n.behavioral_role)
     const isHighlighted = highlighted !== null && highlighted.has(n.id)
     const isGreyed = highlighted !== null && !highlighted.has(n.id)
     const clusterId = clusterMap?.get(n.id) ?? -1
     const isFocusDimmed = focusCluster !== null && clusterId !== focusCluster
 
     let r: number, g: number, b: number
+
     if (isHighlighted) {
       ;[r, g, b] = COLOR_FOCUS
-    } else {
-      // Logarithmic brightness by degree — high-degree hubs are brighter.
-      // Tune the 0.4 (min brightness) and 0.6 (brightness range) to taste.
+    } else if (n.is_laundering_node) {
       const deg = degree.get(n.id) ?? 0
       const brightness = 0.4 + 0.6 * (Math.log(deg + 1) / Math.log(maxDegree + 1))
-
-      const base: [number, number, number] = n.is_laundering_node
-        ? COLOR_FRAUD
-        : clusterMap !== null
-          ? clusterRGB(clusterId)
-          : (ENTITY_RGB[n.entity_type] ?? ENTITY_RGB.unknown)
-
-      r = base[0] * brightness
-      g = base[1] * brightness
-      b = base[2] * brightness
+      r = COLOR_FRAUD[0] * brightness
+      g = COLOR_FRAUD[1] * brightness
+      b = COLOR_FRAUD[2] * brightness
+    } else {
+      const deg = degree.get(n.id) ?? 0
+      const brightness = 0.4 + 0.6 * (Math.log(deg + 1) / Math.log(maxDegree + 1))
+      const base = ENTITY_RGB[n.entity_type] ?? ENTITY_RGB.unknown
+      const variation = clusterMap !== null && clusterId >= 0 ? (clusterId % 5) * 0.06 - 0.12 : 0
+      r = Math.max(0, Math.min(1, base[0] * brightness + variation))
+      g = Math.max(0, Math.min(1, base[1] * brightness + variation))
+      b = Math.max(0, Math.min(1, base[2] * brightness + variation))
     }
 
     arr[i * 4] = r
     arr[i * 4 + 1] = g
     arr[i * 4 + 2] = b
-    // Dimmed nodes get alpha 0.12; tune down further if they're too distracting.
     arr[i * 4 + 3] = isHidden ? 0 : isGreyed || isFocusDimmed ? 0.12 : 1
   }
   return arr
@@ -113,17 +130,17 @@ function buildColors(
 function buildSizes(
   nodes: NodeData[],
   hidden: Set<string>,
+  hiddenBehavioralRoles: Set<string>,
   sizeScale: number,
   scoring: NodeScoringResult | null
 ): Float32Array {
   const arr = new Float32Array(nodes.length)
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i]
-    if (hidden.has(n.entity_type)) {
+    if (hidden.has(n.entity_type) || hiddenBehavioralRoles.has(n.behavioral_role)) {
       arr[i] = 0
     } else {
       const risk = scoring ? scoring.scores[i] : (n.risk_score ?? 0)
-      // Min size 4px, max 16px. Tune the 4 (base) and 12 (risk range) multipliers.
       arr[i] = (4 + 12 * risk) * sizeScale
     }
   }
@@ -134,8 +151,6 @@ function buildClusterStrength(n: number, scoring: NodeScoringResult | null): Flo
   const arr = new Float32Array(n)
   for (let i = 0; i < n; i++) {
     const risk = scoring ? scoring.scores[i] : 0.5
-    // High-risk nodes are pulled toward their cluster centroid more strongly.
-    // Range [0.3, 1.0] — tune the floor (0.3) and ceiling to change cohesion.
     arr[i] = 0.3 + 0.7 * risk
   }
   return arr
@@ -145,13 +160,28 @@ function buildLinkColors(
   edges: EdgeData[],
   idxMap: Map<string, number>,
   nodes: NodeData[],
-  highlighted: Set<string> | null
+  highlighted: Set<string> | null,
+  hidden: Set<string>,
+  hiddenRoles: Set<string>
 ): Float32Array {
   const arr = new Float32Array(edges.length * 4)
   for (let i = 0; i < edges.length; i++) {
     const e = edges[i]
     const si = idxMap.get(e.source)
     const ti = idxMap.get(e.target)
+    const srcNode = si !== undefined ? nodes[si] : null
+    const tgtNode = ti !== undefined ? nodes[ti] : null
+    const isEdgeHidden =
+      (srcNode !== null &&
+        (hidden.has(srcNode.entity_type) || hiddenRoles.has(srcNode.behavioral_role))) ||
+      (tgtNode !== null &&
+        (hidden.has(tgtNode.entity_type) || hiddenRoles.has(tgtNode.behavioral_role)))
+
+    if (isEdgeHidden) {
+      arr[i * 4 + 3] = 0
+      continue
+    }
+
     const isHighEdge =
       highlighted !== null &&
       si !== undefined &&
@@ -184,22 +214,185 @@ function buildLinkWidths(
   idxMap: Map<string, number>,
   nodes: NodeData[],
   highlighted: Set<string> | null,
-  base: number
+  hidden: Set<string>,
+  hiddenRoles: Set<string>
 ): Float32Array {
   const arr = new Float32Array(edges.length)
   for (let i = 0; i < edges.length; i++) {
     const e = edges[i]
     const si = idxMap.get(e.source)
     const ti = idxMap.get(e.target)
+    const srcNode = si !== undefined ? nodes[si] : null
+    const tgtNode = ti !== undefined ? nodes[ti] : null
+    const isEdgeHidden =
+      (srcNode !== null &&
+        (hidden.has(srcNode.entity_type) || hiddenRoles.has(srcNode.behavioral_role))) ||
+      (tgtNode !== null &&
+        (hidden.has(tgtNode.entity_type) || hiddenRoles.has(tgtNode.behavioral_role)))
+
+    if (isEdgeHidden) {
+      arr[i] = 0
+      continue
+    }
+
     const hi =
       highlighted !== null &&
       si !== undefined &&
       ti !== undefined &&
       highlighted.has(nodes[si]?.id) &&
       highlighted.has(nodes[ti]?.id)
+    const base = computeLinkWidth(e)
     arr[i] = e.is_laundering === true || hi ? base * 2.5 : base
   }
   return arr
+}
+
+function drawEntityHalos(
+  ctx: CanvasRenderingContext2D,
+  typeCentroids: Record<string, [number, number]>,
+  nodes: NodeData[],
+  hidden: Set<string>,
+  g: Graph
+) {
+  for (const [type, [cx, cy]] of Object.entries(typeCentroids)) {
+    if (hidden.has(type)) continue
+    const typeNodes = nodes.filter(n => n.entity_type === type && !hidden.has(n.entity_type))
+    if (typeNodes.length < 2) continue
+
+    const [cxS, cyS] = g.spaceToScreenPosition([cx * SPACE_HALF, cy * SPACE_HALF])
+
+    let maxR = 0
+    for (const n of typeNodes) {
+      const [nx, ny] = g.spaceToScreenPosition([(n.x ?? 0) * SPACE_HALF, (n.y ?? 0) * SPACE_HALF])
+      const d = Math.hypot(nx - cxS, ny - cyS)
+      if (d > maxR) maxR = d
+    }
+    maxR += 55
+
+    const color = ENTITY_HEX[type] ?? ENTITY_HEX.unknown
+
+    ctx.beginPath()
+    ctx.arc(cxS, cyS, maxR, 0, Math.PI * 2)
+    ctx.fillStyle = color + '26'
+    ctx.fill()
+    ctx.strokeStyle = color + '66'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+
+    ctx.font = 'bold 13px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.shadowColor = '#0d1117'
+    ctx.shadowBlur = 6
+    ctx.fillStyle = color
+    ctx.fillText(ENTITY_LABELS[type] ?? type, cxS, cyS - maxR - 6)
+    ctx.shadowBlur = 0
+  }
+}
+
+function drawBehavioralBadges(
+  ctx: CanvasRenderingContext2D,
+  nodes: NodeData[],
+  hiddenBehavioralRoles: Set<string>,
+  g: Graph
+) {
+  for (const n of nodes) {
+    const icon = ROLE_ICONS[n.behavioral_role]
+    if (!icon) continue
+    if (hiddenBehavioralRoles.has(n.behavioral_role)) continue
+
+    const [sx, sy] = g.spaceToScreenPosition([(n.x ?? 0) * SPACE_HALF, (n.y ?? 0) * SPACE_HALF])
+    const offset = 12
+
+    ctx.font = '11px sans-serif'
+    ctx.fillStyle = icon.color
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.globalAlpha = 0.9
+    ctx.fillText(icon.symbol, sx + offset, sy - offset)
+    ctx.globalAlpha = 1
+  }
+}
+
+function drawFocusedArrows(
+  ctx: CanvasRenderingContext2D,
+  selectedId: string,
+  neighborEdges: EdgeData[],
+  nodesMap: Map<string, NodeData>,
+  g: Graph
+) {
+  for (const e of neighborEdges) {
+    const src = nodesMap.get(e.source)
+    const tgt = nodesMap.get(e.target)
+    if (!src || !tgt) continue
+
+    const [x1, y1] = g.spaceToScreenPosition([(src.x ?? 0) * SPACE_HALF, (src.y ?? 0) * SPACE_HALF])
+    const [x2, y2] = g.spaceToScreenPosition([(tgt.x ?? 0) * SPACE_HALF, (tgt.y ?? 0) * SPACE_HALF])
+
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const dist = Math.hypot(dx, dy) || 1
+    const nx = dx / dist
+    const ny = dy / dist
+
+    const tgtR = (g.getPointRadiusByIndex(nodesMap.size) ?? 8) + 4
+    const ex = x2 - nx * tgtR
+    const ey = y2 - ny * tgtR
+
+    const lw = computeLinkWidth(e)
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(ex, ey)
+    ctx.strokeStyle = '#4a9eff'
+    ctx.lineWidth = lw
+    ctx.globalAlpha = 0.85
+    ctx.stroke()
+
+    const angle = Math.atan2(dy, dx)
+    const headLen = 9
+    const spread = 0.42
+    ctx.beginPath()
+    ctx.moveTo(ex, ey)
+    ctx.lineTo(ex - headLen * Math.cos(angle - spread), ey - headLen * Math.sin(angle - spread))
+    ctx.moveTo(ex, ey)
+    ctx.lineTo(ex - headLen * Math.cos(angle + spread), ey - headLen * Math.sin(angle + spread))
+    ctx.stroke()
+
+    ctx.globalAlpha = 1
+  }
+}
+
+function drawTransactionParticles(
+  ctx: CanvasRenderingContext2D,
+  neighborEdges: EdgeData[],
+  nodesMap: Map<string, NodeData>,
+  g: Graph
+) {
+  const now = performance.now() / 1000
+
+  neighborEdges.forEach((e, i) => {
+    if (!e.payment_format && !e.amount_paid) return
+    const src = nodesMap.get(e.source)
+    const tgt = nodesMap.get(e.target)
+    if (!src || !tgt) return
+
+    const [x1, y1] = g.spaceToScreenPosition([(src.x ?? 0) * SPACE_HALF, (src.y ?? 0) * SPACE_HALF])
+    const [x2, y2] = g.spaceToScreenPosition([(tgt.x ?? 0) * SPACE_HALF, (tgt.y ?? 0) * SPACE_HALF])
+
+    for (let p = 0; p < 2; p++) {
+      const t = (now * 0.35 + i * 0.28 + p * 0.5) % 1
+      const x = x1 + (x2 - x1) * t
+      const y = y1 + (y2 - y1) * t
+
+      ctx.globalAlpha = Math.sin(t * Math.PI) * 0.85
+      ctx.fillStyle = '#4a9eff'
+      ctx.beginPath()
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  })
+
+  ctx.globalAlpha = 1
 }
 
 export interface SimConfig {
@@ -214,23 +407,20 @@ export interface GraphCanvasProps {
   edges: EdgeData[]
   isReady: boolean
   hiddenEntityTypes: Set<string>
+  hiddenBehavioralRoles?: Set<string>
   highlightedNodeIds: Set<string> | null
   onNodeClick: (node: NodeData | null) => void
   sizeScale: number
   zoomTarget: { id: string; ts: number } | null
-  /** Track A — unsupervised; independent of scoring */
   clustering: ClusteringResult | null
-  /** Привязка node_id → cluster_id; надёжнее позиционного индекса из clustering.labels */
   clusterMap: Map<string, number> | null
-  /** Track B — supervised/heuristic; independent of clustering */
   scoring: NodeScoringResult | null
-  /** If set, dim all clusters except this one */
   focusCluster: number | null
   simConfig?: SimConfig
-  /** Mirrors the externally selected node id; when null, focus highlight is cleared */
   selectedNodeId?: string | null
-  /** Increment to trigger a full re-layout (re-scatters positions and restarts simulation) */
   rerunTrigger?: number
+  typeCentroids?: Record<string, [number, number]>
+  nodePatterns?: Map<string, string[]>
 }
 
 export default function GraphCanvas({
@@ -238,6 +428,7 @@ export default function GraphCanvas({
   edges,
   isReady,
   hiddenEntityTypes,
+  hiddenBehavioralRoles,
   highlightedNodeIds,
   onNodeClick,
   sizeScale,
@@ -248,25 +439,55 @@ export default function GraphCanvas({
   focusCluster,
   simConfig,
   selectedNodeId,
-  rerunTrigger
+  rerunTrigger,
+  typeCentroids,
+  nodePatterns
 }: GraphCanvasProps) {
   const divRef = useRef<HTMLDivElement>(null)
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
   const graphRef = useRef<Graph | null>(null)
   const nodesRef = useRef<NodeData[]>(nodes)
   const onNodeClickRef = useRef(onNodeClick)
   const idxMapRef = useRef<Map<string, number>>(new Map())
   const validEdgesRef = useRef<EdgeData[]>([])
+  const nodesMapRef = useRef<Map<string, NodeData>>(new Map())
+
+  const typeCentroidsRef = useRef<Record<string, [number, number]>>(typeCentroids ?? {})
+  const nodePatternsRef = useRef<Map<string, string[]>>(nodePatterns ?? new Map())
+  const selectedNodeIdRef = useRef<string | null>(selectedNodeId ?? null)
+  const hiddenRef = useRef<Set<string>>(hiddenEntityTypes)
+  const hiddenBehavioralRolesRef = useRef<Set<string>>(hiddenBehavioralRoles ?? new Set())
+  const focusNeighborsRef = useRef<Set<string> | null>(null)
+
   const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [hovered, setHovered] = useState<{ node: NodeData; index: number } | null>(null)
   const [focusNeighbors, setFocusNeighbors] = useState<Set<string> | null>(null)
 
-  // When selectedNodeId is cleared externally, suppress the neighbor highlight derived from it
   const effectiveFocusNeighbors = selectedNodeId ? focusNeighbors : null
 
   useEffect(() => {
     nodesRef.current = nodes
     onNodeClickRef.current = onNodeClick
   })
+
+  useEffect(() => {
+    typeCentroidsRef.current = typeCentroids ?? {}
+  }, [typeCentroids])
+  useEffect(() => {
+    nodePatternsRef.current = nodePatterns ?? new Map()
+  }, [nodePatterns])
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId ?? null
+  }, [selectedNodeId])
+  useEffect(() => {
+    hiddenRef.current = hiddenEntityTypes
+  }, [hiddenEntityTypes])
+  useEffect(() => {
+    hiddenBehavioralRolesRef.current = hiddenBehavioralRoles ?? new Set()
+  }, [hiddenBehavioralRoles])
+  useEffect(() => {
+    focusNeighborsRef.current = effectiveFocusNeighbors
+  }, [effectiveFocusNeighbors])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
@@ -279,7 +500,7 @@ export default function GraphCanvas({
       backgroundColor: '#0d1117',
       enableSimulation: true,
       fitViewOnInit: true,
-      fitViewDelay: 200, // ms before the initial fit-to-view zoom fires
+      fitViewDelay: 200,
       renderHoveredPointRing: true,
       hoveredPointCursor: 'pointer',
       pointDefaultSize: 4,
@@ -287,43 +508,7 @@ export default function GraphCanvas({
       linkVisibilityDistanceRange: [20, 5000],
       linkVisibilityMinTransparency: 0.8,
       curvedLinks: false,
-
-      // spaceSize: canvas coordinate system size. Library max is 8192.
       spaceSize: SPACE_SIZE,
-
-      // simulationDecay: how fast alpha drops per tick (smaller = cools slower).
-      // Default 5000 — we use 2000 so it settles faster without manual pause.
-      // Raise toward 5000 if you want longer organic spreading.
-      // simulationDecay: 2000,
-
-      // simulationFriction: fraction of velocity RETAINED each tick [0,1].
-      // Default 0.85 — keeps 85% velocity → nearly never stops.
-      // 0.15 means 85% damped per tick, settles in a few seconds.
-      // Raise toward 0.5 if the layout collapses too quickly.
-      // simulationFriction: 0.15,
-
-      // simulationGravity: pull toward canvas centre [0, ∞].
-      // Too high → everything collapses to one point. Too low → disconnected components drift off.
-      // simulationGravity: simConfig?.gravity ?? 0.05,
-
-      // simulationRepulsion: node-node repulsion strength [0, ∞].
-      // Raise for more spread; lower if clusters are too far apart.
-      // simulationRepulsion: simConfig?.repulsion ?? 2.0,
-
-      // simulationRepulsionTheta: Barnes–Hut approximation threshold.
-      // Higher = faster but less accurate repulsion. 1.15 is default; 1.5 gives good perf.
-      // simulationRepulsionTheta: 1.5,
-
-      // simulationLinkSpring: edge spring stiffness [0, ∞].
-      // High values pull connected nodes tightly together; low lets them breathe.
-      // simulationLinkSpring: simConfig?.linkSpring ?? 0.3,
-
-      // simulationLinkDistance: preferred rest length for edge springs (pixels).
-      // simulationLinkDistance: 20,
-
-      // simulationCluster: strength of cluster-centroid attraction [0, ∞].
-      // Works only when setPointClusters / setClusterPositions are called.
-      // simulationCluster: simConfig?.clusterStrength ?? 0.4,
 
       onPointMouseOver: (index: number) => {
         const node = nodesRef.current[index]
@@ -355,6 +540,61 @@ export default function GraphCanvas({
   }, [])
 
   useEffect(() => {
+    const canvas = overlayCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let rafId = 0
+
+    const tick = () => {
+      const g = graphRef.current
+      const allNodes = nodesRef.current
+
+      const parent = canvas.parentElement
+      if (parent) {
+        const w = parent.clientWidth
+        const h = parent.clientHeight
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w
+          canvas.height = h
+        }
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      if (g && allNodes.length > 0) {
+        const tc = typeCentroidsRef.current
+        const selId = selectedNodeIdRef.current
+        const hidden = hiddenRef.current
+        const hiddenRoles = hiddenBehavioralRolesRef.current
+
+        if (Object.keys(tc).length > 0) {
+          drawEntityHalos(ctx, tc, allNodes, hidden, g)
+        }
+
+        drawBehavioralBadges(ctx, allNodes, hiddenRoles, g)
+
+        if (selId) {
+          const nm = nodesMapRef.current
+          const neighborEdges = validEdgesRef.current.filter(
+            e => e.source === selId || e.target === selId
+          )
+          if (neighborEdges.length > 0) {
+            drawFocusedArrows(ctx, selId, neighborEdges, nm, g)
+            drawTransactionParticles(ctx, neighborEdges, nm, g)
+          }
+        }
+      }
+
+      rafId = requestAnimationFrame(tick)
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+
+  useEffect(() => {
     if (!graphRef.current || !simConfig) return
     graphRef.current.setConfig({
       simulationGravity: simConfig.gravity ?? 0.05,
@@ -363,7 +603,6 @@ export default function GraphCanvas({
       simulationCluster: simConfig.clusterStrength ?? 0.4
     })
     graphRef.current.start()
-    // Кратковременная симуляция после изменения параметров — останавливаем через 2с
     setTimeout(() => graphRef.current?.pause(), 2000)
   }, [simConfig])
 
@@ -375,8 +614,8 @@ export default function GraphCanvas({
     nodes.forEach((n, i) => idxMap.set(n.id, i))
     idxMapRef.current = idxMap
 
-    // Координаты бэкенда нормализованы в [-1, 1] — масштабируем в пространство cosmos.gl.
-    const SPACE_HALF = SPACE_SIZE / 2
+    nodesMapRef.current = new Map(nodes.map(n => [n.id, n]))
+
     const scatter = SPACE_HALF * 1.2
     const positions = new Float32Array(nodes.length * 2)
     for (let i = 0; i < nodes.length; i++) {
@@ -396,8 +635,7 @@ export default function GraphCanvas({
       links[i * 2 + 1] = idxMap.get(validEdges[i].target)!
     }
 
-    const count = nodes.length
-    const baseWidth = count < 500 ? 2 : count < 2000 ? 1.5 : 1
+    const hiddenRoles = hiddenBehavioralRoles ?? new Set<string>()
 
     g.setPointPositions(positions)
     g.setPointColors(
@@ -405,18 +643,22 @@ export default function GraphCanvas({
         nodes,
         validEdges,
         hiddenEntityTypes,
+        hiddenRoles,
         highlightedNodeIds,
         clusterMap,
         focusCluster
       )
     )
-    g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, sizeScale, scoring))
+    g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
     g.setPointShapes(new Float32Array(nodes.length))
     g.setLinks(links)
-    g.setLinkColors(buildLinkColors(validEdges, idxMap, nodes, highlightedNodeIds))
-    g.setLinkWidths(buildLinkWidths(validEdges, idxMap, nodes, highlightedNodeIds, baseWidth))
+    g.setLinkColors(
+      buildLinkColors(validEdges, idxMap, nodes, highlightedNodeIds, hiddenEntityTypes, hiddenRoles)
+    )
+    g.setLinkWidths(
+      buildLinkWidths(validEdges, idxMap, nodes, highlightedNodeIds, hiddenEntityTypes, hiddenRoles)
+    )
 
-    // Track A: центроиды кластеров масштабируем в SPACE_SIZE*0.25 радиус.
     if (clustering?.cluster_centroids_2d && clusterMap) {
       const raw = clustering.cluster_centroids_2d
       const maxR = Math.max(...raw.map(([x, y]) => Math.sqrt(x * x + y * y)), 1)
@@ -426,7 +668,6 @@ export default function GraphCanvas({
         clusterPos[2 * c] = x * scale
         clusterPos[2 * c + 1] = y * scale
       })
-      // Привязка узлов к кластерам по nodeId через clusterMap (надёжнее позиционного индекса)
       const pointClusters = Array.from(
         { length: nodes.length },
         (_, i) => clusterMap.get(nodes[i].id) ?? -1
@@ -435,10 +676,7 @@ export default function GraphCanvas({
       g.setClusterPositions(clusterPos)
     }
 
-    // Track B: высокорисковые узлы притягиваются к центроиду сильнее
     g.setPointClusterStrength(buildClusterStrength(nodes.length, scoring))
-
-    // Координаты вычислены сервером — останавливаем симуляцию после первого рендера.
     g.render(1)
     g.pause()
   }, [isReady, nodes, edges, rerunTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -448,27 +686,32 @@ export default function GraphCanvas({
     if (!g || nodes.length === 0) return
     const idxMap = idxMapRef.current
     const validEdges = validEdgesRef.current
-    const count = nodes.length
-    const baseWidth = count < 500 ? 2 : count < 2000 ? 1.5 : 1
-
     const effectiveHighlight = effectiveFocusNeighbors ?? highlightedNodeIds
+    const hiddenRoles = hiddenBehavioralRoles ?? new Set<string>()
+
     g.setPointColors(
       buildColors(
         nodes,
-        validEdgesRef.current,
+        validEdges,
         hiddenEntityTypes,
+        hiddenRoles,
         effectiveHighlight,
         clusterMap,
         focusCluster
       )
     )
-    g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, sizeScale, scoring))
-    g.setLinkColors(buildLinkColors(validEdges, idxMap, nodes, effectiveHighlight))
-    g.setLinkWidths(buildLinkWidths(validEdges, idxMap, nodes, effectiveHighlight, baseWidth))
+    g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
+    g.setLinkColors(
+      buildLinkColors(validEdges, idxMap, nodes, effectiveHighlight, hiddenEntityTypes, hiddenRoles)
+    )
+    g.setLinkWidths(
+      buildLinkWidths(validEdges, idxMap, nodes, effectiveHighlight, hiddenEntityTypes, hiddenRoles)
+    )
     g.setPointClusterStrength(buildClusterStrength(nodes.length, scoring))
     g.render()
   }, [
     hiddenEntityTypes,
+    hiddenBehavioralRoles,
     highlightedNodeIds,
     effectiveFocusNeighbors,
     sizeScale,
@@ -491,6 +734,7 @@ export default function GraphCanvas({
       : (hovered.node.risk_score ?? 0)
     : 0
   const clusterLabel = hovered && clusterMap ? (clusterMap.get(hovered.node.id) ?? null) : null
+  const behavioralRole = hovered?.node.behavioral_role
 
   return (
     <div
@@ -500,7 +744,18 @@ export default function GraphCanvas({
     >
       <div ref={divRef} className="w-full h-full" />
 
-      {/* Fit-view button */}
+      <canvas
+        ref={overlayCanvasRef}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none'
+        }}
+      />
+
       <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 20 }}>
         <Tooltip content="Вписать в экран">
           <IconButton
@@ -545,8 +800,14 @@ export default function GraphCanvas({
                 {hovered.node.id.length > 24 ? hovered.node.id.slice(0, 22) + '…' : hovered.node.id}
               </Text>
               <Flex align="center" gap="1" wrap="wrap">
-                <Badge size="1" color="gray" variant="soft">
-                  {hovered.node.entity_type}
+                <Badge
+                  size="1"
+                  style={{
+                    background: (ENTITY_HEX[hovered.node.entity_type] ?? '#6b7280') + '33',
+                    color: ENTITY_HEX[hovered.node.entity_type] ?? '#6b7280'
+                  }}
+                >
+                  {ENTITY_LABELS[hovered.node.entity_type] ?? hovered.node.entity_type}
                 </Badge>
                 {clusterLabel !== null && (
                   <Badge size="1" color="blue" variant="soft">
@@ -561,6 +822,19 @@ export default function GraphCanvas({
                   риск {Math.round(riskScore * 100)}%
                 </Badge>
               </Flex>
+              {behavioralRole && behavioralRole !== 'regular' && (
+                <Badge
+                  size="1"
+                  variant="soft"
+                  style={{
+                    background: (ROLE_ICONS[behavioralRole]?.color ?? '#6b7280') + '22',
+                    color: ROLE_ICONS[behavioralRole]?.color ?? '#6b7280'
+                  }}
+                >
+                  {ROLE_ICONS[behavioralRole]?.symbol}{' '}
+                  {ROLE_LABELS[behavioralRole] ?? behavioralRole}
+                </Badge>
+              )}
               {hovered.node.is_laundering_node && (
                 <Badge size="1" color="red" variant="surface">
                   Подозрение в отмывании

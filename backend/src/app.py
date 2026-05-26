@@ -6,8 +6,8 @@ from fastapi import FastAPI
 
 from src.api import get_middlewares, get_root_router
 from src.di.container import create_container
-from src.infrastructure.task_queue.broker import rabbitmq_broker
-from src.infrastructure.task_queue.setup import setup_taskiq
+from src.infrastructure.task_processing.broker import rabbitmq_broker
+from src.infrastructure.task_processing.setup import setup_taskiq
 from src.settings import settings
 
 __all__ = ['app']

@@ -1,19 +1,3 @@
-"""
-Кластеризация транзакционного графа.
-
-Алгоритмы:
-
-- AGC (Adaptive Graph Convolution, Zhang et al. IJCAI 2019, arXiv:1906.01210) —
-  спектральный метод без обучения. Применяет low-pass фильтр на основе нормализованного
-  лапласиана к матрице признаков узлов, постепенно сглаживая признаки по структуре
-  графа, затем выполняет спектральную кластеризацию. Порядок фильтра k выбирается
-  адаптивно (первый локальный минимум внутрикластерного расстояния), что предотвращает
-  over-smoothing.
-
-- Louvain — модуляционный метод community detection. Используется как baseline без
-  признаков узлов, для сравнения со структурно-ориентированным подходом.
-"""
-
 import logging
 from dataclasses import dataclass
 from typing import Literal
@@ -65,7 +49,7 @@ def cluster_graph(
     :param graph: Транзакционный мультиграф из GraphBuilder.
     :param method: ``"agc"`` (требует признаки узлов) или ``"louvain"`` (только структура).
     :param n_clusters: Желаемое число кластеров для AGC. Игнорируется Louvain.
-                       Если None для AGC — оценивается через eigengap-эвристику.
+                       Если None для AGC - оценивается через eigengap-эвристику.
     :param max_k: Максимальный порядок фильтра для AGC.
     :param random_state: Seed для воспроизводимости.
     :returns: ClusteringResult с метками и метаданными.
@@ -170,12 +154,7 @@ def _top_eigenvectors(W: np.ndarray, k: int, random_state: int) -> np.ndarray:
 
 
 def _compute_intra_distance(X_bar: np.ndarray, labels: np.ndarray) -> float:
-    """Среднее внутрикластерное попарное расстояние.
-
-    Формула: (1/|C|) * Σ_{c in C} (1/(|c|*(|c|-1))) * Σ_{i≠j in c} ||xi - xj||
-
-    Эквивалентно: (1/|C|) * Σ_{c in C} mean(pdist(X_c)) для кластеров размера ≥2.
-    """
+    """Среднее внутрикластерное попарное расстояние."""
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
     total = 0.0
@@ -201,7 +180,7 @@ def _cluster_agc(
     max_k: int,
     random_state: int,
 ) -> ClusteringResult:
-    """Реализация AGC (Zhang et al. 2019, arXiv:1906.01210)."""
+    """Реализация AGC."""
     node_id_to_index = features.node_id_to_index
     n = len(node_id_to_index)
     X = features.X.astype(np.float64)
@@ -253,7 +232,7 @@ def _cluster_agc(
         logger.debug('AGC k=%d: intra_distance=%.4f', t, intra_curr)
 
         if intra_curr > intra_prev:
-            # Внутрикластерное расстояние выросло — предыдущий шаг был лучше
+            # Внутрикластерное расстояние выросло - предыдущий шаг был лучше
             logger.info('AGC остановился на k=%d (intra %.4f > %.4f)', t, intra_curr, intra_prev)
             break
 
@@ -285,7 +264,6 @@ def _cluster_louvain(graph: nx.MultiDiGraph, random_state: int) -> ClusteringRes
     n = len(nodes)
     node_id_to_index = {str(node): i for i, node in enumerate(nodes)}
 
-    # MultiDiGraph → undirected weighted Graph с агрегацией весов
     undirected = nx.Graph()
     undirected.add_nodes_from(nodes)
 

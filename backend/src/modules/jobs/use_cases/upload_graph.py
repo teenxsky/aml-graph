@@ -1,3 +1,4 @@
+import contextlib
 import uuid
 
 from src.infrastructure.storage.csv_store import CsvStore
@@ -23,7 +24,7 @@ class UploadGraphUseCase:
         column_mapping: ColumnMapping | None = None,
     ) -> JobModel | None:
         """Сохраняет файл и создаёт Job в БД."""
-        try:
+        with contextlib.suppress(Exception):
             job_id = str(uuid.uuid4())
             file_path = self._csv_store.save(job_id, file_bytes)
 
@@ -44,5 +45,4 @@ class UploadGraphUseCase:
 
             return await self._job_repository.get_job(job_id)
 
-        except Exception:
-            return None
+        return None

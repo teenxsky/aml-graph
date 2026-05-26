@@ -3,6 +3,8 @@ export interface ColumnMapping {
   receiver_id: string
   amount_paid: string
   timestamp: string
+  sender_entity_type: string
+  receiver_entity_type: string
   device_id?: string | null
   ip_address?: string | null
   sender_bank?: string | null

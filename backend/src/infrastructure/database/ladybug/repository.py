@@ -14,6 +14,7 @@ CREATE NODE TABLE Account (
     pk                  STRING  PRIMARY KEY,
     account_id          STRING,
     entity_type         STRING,
+    behavioral_role     STRING,
     in_flow             DOUBLE,
     out_flow            DOUBLE,
     risk_score          DOUBLE,
@@ -43,6 +44,7 @@ CREATE REL TABLE TRANSFER (
 _LOAD_NODES_CYPHER = (
     'MATCH (a:Account) RETURN '
     'a.account_id AS account_id, a.entity_type AS entity_type, '
+    'a.behavioral_role AS behavioral_role, '
     'a.in_flow AS in_flow, a.out_flow AS out_flow, '
     'a.risk_score AS risk_score, a.is_laundering_node AS is_laundering_node, '
     'a.x AS x, a.y AS y, a.alerts AS alerts'
@@ -105,7 +107,8 @@ class LadybugGraphRepository(LadybugBaseRepository, GraphStoreRepository):
                 {
                     'pk': f'{job_id}::{node_str}',
                     'account_id': node_str,
-                    'entity_type': attrs.get('entity_type', 'unknown'),
+                    'entity_type': attrs.get('entity_type', 'account'),
+                    'behavioral_role': attrs.get('behavioral_role', 'regular'),
                     'in_flow': float(attrs.get('in_flow', 0.0)),
                     'out_flow': float(attrs.get('out_flow', 0.0)),
                     'risk_score': float(scores.get(node_str, 0.0)),

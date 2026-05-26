@@ -5,7 +5,7 @@ from src.infrastructure.database.postgres.types import (
     AmlDBSession,
 )
 from src.infrastructure.storage.csv_store import CsvStore
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
 from src.modules.graph.repositories.graph import GraphStoreRepository
 from src.modules.jobs.repositories.job import JobRepository
 from src.settings import settings
@@ -25,5 +25,5 @@ class RepositoriesProvider(Provider):
         return CsvStore(settings.storage.csv_path)
 
     @provide(scope=Scope.APP)
-    def graph_artifact_store(self) -> GraphArtifactStore:
-        return GraphArtifactStore(settings.storage.csv_path)
+    def redis_artifact_store(self) -> RedisArtifactStore:
+        return RedisArtifactStore(str(settings.redis.dsn))

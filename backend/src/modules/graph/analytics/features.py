@@ -1,11 +1,3 @@
-"""
-Извлечение матрицы признаков узлов из графа для алгоритмов кластеризации.
-
-Признаки строятся из агрегатов транзакций (рёбер) и атрибутов узлов.
-Намеренно НЕ включает risk_score и is_laundering_node — это downstream-сигналы,
-их использование привело бы к циклическому рассуждению при кластеризации.
-"""
-
 import logging
 from collections import Counter
 from dataclasses import dataclass
@@ -93,7 +85,7 @@ def build_node_features(
     feature_names: list[str] = []
     columns: list[np.ndarray] = []
 
-    # ===== A: потоки и алерты =====
+    # потоки и алерты
 
     in_flow_arr = np.array([sum(in_amounts[i]) for i in range(n)], dtype=np.float32)
     out_flow_arr = np.array([sum(out_amounts[i]) for i in range(n)], dtype=np.float32)
@@ -109,7 +101,7 @@ def build_node_features(
     columns += [in_flow_arr, out_flow_arr, total_volume, flow_balance, alerts_count]
     feature_names += ['in_flow', 'out_flow', 'total_volume', 'flow_balance', 'alerts_count']
 
-    # ===== B: степени и уникальные контрагенты =====
+    # степени и уникальные контрагенты
 
     out_deg = np.array([graph.out_degree(node) for node in nodes], dtype=np.float32)
     in_deg = np.array([graph.in_degree(node) for node in nodes], dtype=np.float32)
@@ -130,7 +122,7 @@ def build_node_features(
         'unique_in_counterparties',
     ]
 
-    # ===== C: статистики сумм транзакций =====
+    # статистики сумм транзакций
 
     def _stats(
         amounts_list: list[list[float]],
@@ -159,7 +151,7 @@ def build_node_features(
         'in_amount_max',
     ]
 
-    # ===== D: временные признаки =====
+    # временные признаки
 
     bin_fractions = np.zeros((n, 4), dtype=np.float32)
     weekend_fraction = np.zeros(n, dtype=np.float32)
@@ -179,7 +171,7 @@ def build_node_features(
         for b in range(4):
             bin_fractions[i, b] = float(np.sum(bins == b)) / total
 
-        # Доля выходных (1970-01-01 — четверг, +4 смещение к понедельнику)
+        # Доля выходных (1970-01-01 - четверг, +4 смещение к понедельнику)
         weekdays = (ts_arr // 86400 + 4) % 7
         weekend_fraction[i] = float(np.sum(weekdays >= 5)) / total
 
@@ -200,7 +192,7 @@ def build_node_features(
     columns.append(burstiness)
     feature_names.append('burstiness')
 
-    # ===== E: категориальные признаки =====
+    # категориальные признаки
 
     entity_counter: Counter[str] = Counter()
     for node in nodes:
@@ -237,12 +229,12 @@ def build_node_features(
         columns.append(col)
         feature_names.append(f'alert_{alert_type}')
 
-    # ===== Сборка матрицы =====
+    # сборка матрицы
 
     X_raw = np.column_stack(columns).astype(np.float32)
 
     # Log1p к объёмным признакам группы A+B+C (первые 15 колонок)
-    # flow_balance (индекс 3) может быть отрицательным — знаковый log1p
+    # flow_balance (индекс 3) может быть отрицательным - знаковый log1p
     for col_idx in range(15):
         if col_idx == 3:
             X_raw[:, col_idx] = np.sign(X_raw[:, col_idx]) * np.log1p(np.abs(X_raw[:, col_idx]))

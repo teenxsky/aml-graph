@@ -191,7 +191,7 @@ export default function DetailPanel({
         </IconButton>
       </Flex>
 
-      {/* Scrollable body — vertical scroll only; content constrained to panel width */}
+      {/* Scrollable body - vertical scroll only; content constrained to panel width */}
       <ScrollArea scrollbars="vertical" style={{ flex: 1 }}>
         <Box style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}>
           {/* Entity type + risk score */}
@@ -210,7 +210,7 @@ export default function DetailPanel({
                 Риск-скор
               </Text>
               <Badge color={RISK_COLOR[level]} variant="soft" size="1">
-                {Math.round(score * 100)}% — {RISK_LABEL[level]}
+                {Math.round(score * 100)}% - {RISK_LABEL[level]}
               </Badge>
             </Flex>
             <Progress value={score * 100} color={RISK_COLOR[level]} size="1" />

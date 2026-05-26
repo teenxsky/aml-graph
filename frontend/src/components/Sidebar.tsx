@@ -30,6 +30,50 @@ const PATTERN_META: Record<string, { label: string; icon: React.ReactNode }> = {
   shared_device: { label: 'Общие устройства/IP', icon: <MobileIcon /> }
 }
 
+const ENTITY_HEX: Record<string, string> = {
+  account: '#66bb6a',
+  individual: '#4fc3f7',
+  business: '#ffa726',
+  payment_institution: '#ab47bc',
+  // backward compat
+  client: '#4fc3f7',
+  company: '#ffa726',
+  device: '#ab47bc',
+  unknown: '#6b7280'
+}
+
+const ENTITY_LABEL: Record<string, string> = {
+  account: 'Счета',
+  individual: 'Физлица',
+  business: 'Юрлица',
+  payment_institution: 'Платёжные институты',
+  client: 'Клиенты',
+  company: 'Юрлица',
+  device: 'Устройства',
+  unknown: 'Прочее'
+}
+
+const ROLE_HEX: Record<string, string> = {
+  hub: '#ff453a',
+  transit: '#ff9f0a',
+  isolated: '#9ca3af',
+  regular: '#6b7280'
+}
+
+const ROLE_ICON: Record<string, string> = {
+  hub: '◉',
+  transit: '⇄',
+  isolated: '·',
+  regular: ''
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  hub: 'Концентратор',
+  transit: 'Транзитный',
+  isolated: 'Одиночный',
+  regular: 'Обычный'
+}
+
 interface SidebarProps {
   detectorResults: DetectorResult[]
   onHighlightPattern: (nodeIds: Set<string> | null) => void
@@ -39,6 +83,12 @@ interface SidebarProps {
   onSelectLaunderingNode: (node: NodeData) => void
   sizeScale: number
   onSizeScaleChange: (v: number) => void
+  entityGroups?: { type: string; count: number }[]
+  hiddenEntityTypes?: Set<string>
+  onToggleEntityType?: (type: string) => void
+  behavioralRoleGroups?: { role: string; count: number }[]
+  hiddenBehavioralRoles?: Set<string>
+  onToggleBehavioralRole?: (role: string) => void
 }
 
 function extractNodeIds(result: DetectorResult): Set<string> {
@@ -62,7 +112,13 @@ export default function Sidebar({
   launderingNodes,
   onSelectLaunderingNode,
   sizeScale,
-  onSizeScaleChange
+  onSizeScaleChange,
+  entityGroups,
+  hiddenEntityTypes,
+  onToggleEntityType,
+  behavioralRoleGroups,
+  hiddenBehavioralRoles,
+  onToggleBehavioralRole
 }: SidebarProps) {
   const [activePattern, setActivePattern] = useState<string | null>(null)
 
@@ -133,6 +189,114 @@ export default function Sidebar({
 
       <ScrollArea style={{ flex: 1 }}>
         <Flex direction="column" gap="1" p="3">
+          {/* Тип сущности */}
+          {entityGroups && entityGroups.length > 0 && (
+            <>
+              <Text
+                size="1"
+                weight="medium"
+                color="gray"
+                mb="1"
+                style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              >
+                Тип сущности
+              </Text>
+              <Flex direction="column" gap="1">
+                {entityGroups.map(({ type, count }) => {
+                  const isHidden = hiddenEntityTypes?.has(type) ?? false
+                  const color = ENTITY_HEX[type] ?? ENTITY_HEX.unknown
+                  return (
+                    <Box
+                      key={type}
+                      onClick={() => onToggleEntityType?.(type)}
+                      style={{
+                        cursor: 'pointer',
+                        borderRadius: 'var(--radius-2)',
+                        padding: '5px 8px',
+                        opacity: isHidden ? 0.4 : 1,
+                        transition: 'opacity 150ms, background 150ms'
+                      }}
+                      className="hover:bg-[var(--gray-3)]"
+                    >
+                      <Flex align="center" justify="between" gap="2">
+                        <Flex align="center" gap="2">
+                          <div
+                            style={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: color,
+                              flexShrink: 0
+                            }}
+                          />
+                          <Text size="2" style={{ color: 'var(--gray-12)' }}>
+                            {ENTITY_LABEL[type] ?? type}
+                          </Text>
+                        </Flex>
+                        <Badge size="1" color="gray" variant="soft" style={{ flexShrink: 0 }}>
+                          {count}
+                        </Badge>
+                      </Flex>
+                    </Box>
+                  )
+                })}
+              </Flex>
+              <Separator size="4" my="2" />
+            </>
+          )}
+
+          {/* Роль в графе */}
+          {behavioralRoleGroups && behavioralRoleGroups.length > 0 && (
+            <>
+              <Text
+                size="1"
+                weight="medium"
+                color="gray"
+                mb="1"
+                style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              >
+                Роль в графе
+              </Text>
+              <Flex direction="column" gap="1">
+                {behavioralRoleGroups.map(({ role, count }) => {
+                  const isHidden = hiddenBehavioralRoles?.has(role) ?? false
+                  const color = ROLE_HEX[role] ?? '#6b7280'
+                  const icon = ROLE_ICON[role] ?? ''
+                  return (
+                    <Box
+                      key={role}
+                      onClick={() => onToggleBehavioralRole?.(role)}
+                      style={{
+                        cursor: 'pointer',
+                        borderRadius: 'var(--radius-2)',
+                        padding: '5px 8px',
+                        opacity: isHidden ? 0.4 : 1,
+                        transition: 'opacity 150ms, background 150ms'
+                      }}
+                      className="hover:bg-[var(--gray-3)]"
+                    >
+                      <Flex align="center" justify="between" gap="2">
+                        <Flex align="center" gap="2">
+                          <Text size="2" style={{ color, flexShrink: 0, minWidth: 12 }}>
+                            {icon}
+                          </Text>
+                          <Text size="2" style={{ color: 'var(--gray-12)' }}>
+                            {ROLE_LABEL[role] ?? role}
+                          </Text>
+                        </Flex>
+                        <Badge size="1" color="gray" variant="soft" style={{ flexShrink: 0 }}>
+                          {count}
+                        </Badge>
+                      </Flex>
+                    </Box>
+                  )
+                })}
+              </Flex>
+              <Separator size="4" my="2" />
+            </>
+          )}
+
+          {/* Размер узлов */}
           <Text
             size="1"
             weight="medium"
@@ -165,6 +329,7 @@ export default function Sidebar({
 
           <Separator size="4" my="2" />
 
+          {/* Паттерны */}
           <Text
             size="1"
             weight="medium"
@@ -284,14 +449,14 @@ export default function Sidebar({
                         </Text>
                         <Flex gap="1" wrap="wrap">
                           <Badge size="1" color="gray" variant="soft">
-                            {node.entity_type}
+                            {ENTITY_LABEL[node.entity_type] ?? node.entity_type}
                           </Badge>
                           <Badge
                             size="1"
-                            color={node.risk_score > 0.7 ? 'red' : 'amber'}
+                            color={(node.risk_score ?? 0) > 0.7 ? 'red' : 'amber'}
                             variant="soft"
                           >
-                            {Math.round(node.risk_score * 100)}%
+                            {Math.round((node.risk_score ?? 0) * 100)}%
                           </Badge>
                         </Flex>
                       </Flex>

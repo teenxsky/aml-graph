@@ -4,29 +4,42 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Badge, Box, Button, Flex, ScrollArea, Separator, Spinner, Text } from '@radix-ui/themes'
-import { ChevronLeftIcon } from '@radix-ui/react-icons'
+import { ChevronLeftIcon, ExclamationTriangleIcon } from '@radix-ui/react-icons'
 import { createSSEClient } from '@/lib/sse-client'
 import type { NodeData } from '@/types/graph/node'
 import type { EdgeData } from '@/types/graph/edge'
 import type { GraphMeta } from '@/types/graph/meta'
 import type { DetectorResult } from '@/types/graph/detector'
 import type { StreamStage } from '@/types/graph/stream'
-import type {
-  AnalysisResult,
-  ClusteringMethod,
-  ClusteringResult,
-  NodeScoringResult,
-  ScoringMethod
-} from '@/types/graph/analysis'
-import StreamProgress from '@/components/StreamProgress'
+import type { AnalysisResult, ClusteringResult, NodeScoringResult } from '@/types/graph/analysis'
+import StreamProgress, { JOB_STATUS_LABEL } from '@/components/StreamProgress'
 import Sidebar from '@/components/Sidebar'
 import DetailPanel from '@/components/DetailPanel'
+import AnalysisMetadataPanel from '@/components/AnalysisMetadataPanel'
 
 const GraphCanvas = dynamic(() => import('@/components/GraphCanvas'), { ssr: false })
 
-const HIDDEN_EMPTY = new Set<string>()
+function extractPatternNodeIds(result: {
+  pattern_type: string
+  items: {
+    node_ids?: string[]
+    nodes?: string[]
+    node_id?: string
+    source_node?: string
+    receivers?: string[]
+  }[]
+}): string[] {
+  const ids: string[] = []
+  for (const item of result.items) {
+    if (Array.isArray(item.node_ids)) item.node_ids.forEach(id => ids.push(String(id)))
+    if (Array.isArray(item.nodes)) item.nodes.forEach(id => ids.push(String(id)))
+    if (typeof item.node_id === 'string') ids.push(item.node_id)
+    if (typeof item.source_node === 'string') ids.push(item.source_node)
+    if (Array.isArray(item.receivers)) item.receivers.forEach(id => ids.push(String(id)))
+  }
+  return ids
+}
 
-// Categorical palette mirrored from GraphCanvas for the cluster legend
 const CLUSTER_PALETTE: [number, number, number][] = [
   [100, 149, 237],
   [50, 205, 50],
@@ -90,6 +103,8 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
   const pendingEdgesRef = useRef<EdgeData[]>([])
 
   const [stage, setStage] = useState<StreamStage>('connecting')
+  const [jobStatus, setJobStatus] = useState<string>('')
+  const [errorMessage, setErrorMessage] = useState<string>('')
   const [graphMeta, setGraphMeta] = useState<GraphMeta | null>(null)
   const [nodes, setNodes] = useState<NodeData[]>([])
   const [edges, setEdges] = useState<EdgeData[]>([])
@@ -104,63 +119,99 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
   const [focusCluster, setFocusCluster] = useState<number | null>(null)
   const [receivedNodeCount, setReceivedNodeCount] = useState(0)
 
-  const [clusteringMethod, setClusteringMethod] = useState<ClusteringMethod>('agc')
-  const [scoringMethod, setScoringMethod] = useState<ScoringMethod>('heuristic')
+  const [hiddenEntityTypes, setHiddenEntityTypes] = useState<Set<string>>(new Set())
+  const [hiddenBehavioralRoles, setHiddenBehavioralRoles] = useState<Set<string>>(new Set())
+  const [rightTab, setRightTab] = useState<'clusters' | 'metadata'>('clusters')
 
   useEffect(() => {
     if (!sessionId) return
 
-    const client = createSSEClient(
-      sessionId,
-      {
-        onGraphMeta: meta => {
-          setGraphMeta(meta)
-          setStage('streaming')
-        },
-        onNodesChunk: newNodes => {
-          pendingNodesRef.current.push(...newNodes)
-          setReceivedNodeCount(prev => prev + newNodes.length)
-        },
-        onEdgesChunk: newEdges => {
-          pendingEdgesRef.current.push(...newEdges)
-        },
-        onAnalysisResult: result => {
-          setAnalysisResult(result)
-          if (result.clustering) {
-            const map = new Map<string, number>()
-            result.clustering.node_ids.forEach((id, i) => {
-              map.set(id, result.clustering!.labels[i])
-            })
-            setClusterMap(map)
-          }
-        },
-        onCompleted: () => {
-          setNodes([...pendingNodesRef.current])
-          setEdges([...pendingEdgesRef.current])
-          setStage('done')
-        },
-        onStatus: () => {
-          setStage(prev => (prev === 'connecting' ? 'streaming' : prev))
-        },
-        onServerError: () => {
-          setStage('error')
-        },
-        onDetectorResult: result => {
-          setDetectorResults(prev => [...prev, result])
-          setStage(s => (s !== 'done' ? 'detectors' : s))
-        },
-        onStreamDone: () => setStage('done'),
-        onError: () => setStage(prev => (prev === 'done' ? 'done' : 'error'))
+    const client = createSSEClient(sessionId, {
+      onGraphMeta: meta => {
+        pendingNodesRef.current = []
+        pendingEdgesRef.current = []
+        setGraphMeta(meta)
+        setStage('streaming')
       },
-      { clustering: clusteringMethod }
-    )
+      onNodesChunk: newNodes => {
+        pendingNodesRef.current.push(...newNodes)
+        setReceivedNodeCount(prev => prev + newNodes.length)
+      },
+      onEdgesChunk: newEdges => {
+        pendingEdgesRef.current.push(...newEdges)
+      },
+      onAnalysisResult: result => {
+        setAnalysisResult(result)
+        if (result.clustering) {
+          const map = new Map<string, number>()
+          result.clustering.node_ids.forEach((id, i) => {
+            map.set(id, result.clustering!.labels[i])
+          })
+          setClusterMap(map)
+        }
+      },
+      onCompleted: () => {
+        setNodes([...pendingNodesRef.current])
+        setEdges([...pendingEdgesRef.current])
+        setStage('done')
+      },
+      onStatus: data => {
+        setJobStatus(data.status)
+      },
+      onServerError: data => {
+        setErrorMessage(data.message)
+        setStage('error')
+      },
+      onDetectorResult: result => {
+        setDetectorResults(prev => [...prev, result])
+        setStage(s => (s !== 'done' ? 'detectors' : s))
+      },
+      onStreamDone: () => {
+        setNodes(prev => (prev.length > 0 ? prev : [...pendingNodesRef.current]))
+        setEdges(prev => (prev.length > 0 ? prev : [...pendingEdgesRef.current]))
+        setStage('done')
+      },
+      onError: () => {
+        setStage(prev => {
+          if (prev === 'done') return 'done'
+          setErrorMessage('Соединение с сервером прервано')
+          return 'error'
+        })
+      }
+    })
     return () => client.close()
-  }, [sessionId, clusteringMethod])
+  }, [sessionId])
 
   const launderingNodes = useMemo(() => nodes.filter(n => n.is_laundering_node), [nodes])
 
+  const entityGroups = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const n of nodes) counts.set(n.entity_type, (counts.get(n.entity_type) ?? 0) + 1)
+    return [...counts.entries()].map(([type, count]) => ({ type, count }))
+  }, [nodes])
+
+  const behavioralRoleGroups = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const n of nodes) counts.set(n.behavioral_role, (counts.get(n.behavioral_role) ?? 0) + 1)
+    return [...counts.entries()].map(([role, count]) => ({ role, count }))
+  }, [nodes])
+
+  const nodePatterns = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const result of detectorResults) {
+      for (const id of extractPatternNodeIds(result)) {
+        const existing = map.get(id) ?? []
+        existing.push(result.pattern_type)
+        map.set(id, existing)
+      }
+    }
+    return map
+  }, [detectorResults])
+
   const clusteringResult: ClusteringResult | null = analysisResult?.clustering ?? null
   const scoringResult: NodeScoringResult | null = analysisResult?.node_scoring ?? null
+
+  const typeCentroids = clusteringResult?.type_centroids ?? {}
 
   const legend = useMemo(
     () => buildLegend(nodes, clusteringResult, scoringResult),
@@ -207,13 +258,13 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
 
       <StreamProgress
         stage={stage}
+        jobStatus={jobStatus}
         nodeCount={graphMeta?.node_count}
         edgeCount={graphMeta?.edge_count}
         receivedNodes={receivedNodeCount}
       />
 
       <Flex style={{ flex: 1, overflow: 'hidden' }}>
-        {/* Left sidebar */}
         <Sidebar
           detectorResults={detectorResults}
           onHighlightPattern={setHighlightedNodeIds}
@@ -226,11 +277,30 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
           }}
           sizeScale={sizeScale}
           onSizeScaleChange={setSizeScale}
+          entityGroups={entityGroups}
+          hiddenEntityTypes={hiddenEntityTypes}
+          onToggleEntityType={type =>
+            setHiddenEntityTypes(prev => {
+              const next = new Set(prev)
+              if (next.has(type)) next.delete(type)
+              else next.add(type)
+              return next
+            })
+          }
+          behavioralRoleGroups={behavioralRoleGroups}
+          hiddenBehavioralRoles={hiddenBehavioralRoles}
+          onToggleBehavioralRole={role =>
+            setHiddenBehavioralRoles(prev => {
+              const next = new Set(prev)
+              if (next.has(role)) next.delete(role)
+              else next.add(role)
+              return next
+            })
+          }
         />
 
-        {/* Canvas */}
         <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-          {!isGraphReady && (
+          {!isGraphReady && stage !== 'error' && (
             <Flex
               direction="column"
               align="center"
@@ -240,15 +310,47 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             >
               <Spinner size="3" />
               <Text size="2" color="gray">
-                {stage === 'connecting' ? 'Подключение...' : 'Построение графа...'}
+                {stage === 'connecting'
+                  ? jobStatus
+                    ? (JOB_STATUS_LABEL[jobStatus] ?? 'Обработка задачи...')
+                    : 'Подключение...'
+                  : 'Загрузка данных графа...'}
               </Text>
+            </Flex>
+          )}
+          {stage === 'error' && (
+            <Flex
+              direction="column"
+              align="center"
+              justify="center"
+              gap="4"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 10,
+                background: 'rgba(13, 17, 23, 0.92)'
+              }}
+            >
+              <ExclamationTriangleIcon width="36" height="36" color="var(--red-9)" />
+              <Flex direction="column" align="center" gap="2">
+                <Text size="4" weight="medium" color="red">
+                  Ошибка обработки
+                </Text>
+                <Text size="2" color="gray" style={{ maxWidth: 400, textAlign: 'center' }}>
+                  {errorMessage || 'Произошла неизвестная ошибка'}
+                </Text>
+              </Flex>
+              <Button onClick={() => router.push('/')} color="gray" variant="soft" size="2">
+                На главную
+              </Button>
             </Flex>
           )}
           <GraphCanvas
             nodes={nodes}
             edges={edges}
             isReady={isGraphReady}
-            hiddenEntityTypes={HIDDEN_EMPTY}
+            hiddenEntityTypes={hiddenEntityTypes}
+            hiddenBehavioralRoles={hiddenBehavioralRoles}
             highlightedNodeIds={highlightedNodeIds}
             onNodeClick={setSelectedNode}
             sizeScale={sizeScale}
@@ -258,10 +360,11 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             scoring={scoringResult}
             focusCluster={focusCluster}
             selectedNodeId={selectedNode?.id ?? null}
+            typeCentroids={typeCentroids}
+            nodePatterns={nodePatterns}
           />
         </Box>
 
-        {/* Right panel: analysis controls + cluster legend */}
         <Flex
           direction="column"
           style={{
@@ -272,137 +375,130 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             overflow: 'hidden'
           }}
         >
-          <ScrollArea scrollbars="vertical" style={{ flex: 1 }}>
-            <Flex direction="column" gap="2" p="3" style={{ minWidth: 0 }}>
-              {/* Clustering track */}
-              <Text
-                size="1"
-                weight="medium"
-                color="gray"
-                style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+          <Flex style={{ borderBottom: '1px solid var(--gray-4)', flexShrink: 0 }}>
+            {(['clusters', 'metadata'] as const).map(tab => (
+              <Box
+                key={tab}
+                onClick={() => setRightTab(tab)}
+                style={{
+                  flex: 1,
+                  padding: '6px 4px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  borderBottom:
+                    rightTab === tab ? '2px solid var(--accent-9)' : '2px solid transparent',
+                  background: rightTab === tab ? 'var(--accent-2)' : undefined,
+                  transition: 'background 150ms'
+                }}
               >
-                Кластеризация
-              </Text>
-              <Flex gap="1" wrap="wrap">
-                {(['agc', 'louvain', 'none'] as ClusteringMethod[]).map(m => (
-                  <Button
-                    key={m}
-                    size="1"
-                    variant={clusteringMethod === m ? 'solid' : 'soft'}
-                    color={clusteringMethod === m ? 'blue' : 'gray'}
-                    onClick={() => setClusteringMethod(m)}
-                  >
-                    {m.toUpperCase()}
-                  </Button>
-                ))}
-              </Flex>
+                <Text
+                  size="1"
+                  weight={rightTab === tab ? 'medium' : 'regular'}
+                  color={rightTab === tab ? 'blue' : 'gray'}
+                >
+                  {tab === 'clusters' ? 'Кластеры' : 'Метаданные'}
+                </Text>
+              </Box>
+            ))}
+          </Flex>
 
-              <Text
-                size="1"
-                weight="medium"
-                color="gray"
-                style={{ textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}
-              >
-                Оценка рисков
-              </Text>
-              <Flex gap="1" wrap="wrap">
-                {(['heuristic', 'gnn', 'none'] as ScoringMethod[]).map(m => (
-                  <Button
-                    key={m}
-                    size="1"
-                    variant={scoringMethod === m ? 'solid' : 'soft'}
-                    color={m === 'gnn' ? 'gray' : scoringMethod === m ? 'blue' : 'gray'}
-                    onClick={() => setScoringMethod(m)}
-                    disabled={m === 'gnn'}
-                    title={m === 'gnn' ? 'GNN — скоро' : undefined}
-                  >
-                    {m === 'gnn' ? 'GNN (скоро)' : m}
-                  </Button>
-                ))}
-              </Flex>
-
-              {/* Cluster legend */}
-              {legend.length > 0 && (
-                <>
-                  <Separator size="4" my="1" />
-
-                  <Flex align="center" justify="between">
-                    <Text
-                      size="1"
-                      weight="medium"
-                      color="gray"
-                      style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
-                    >
-                      Кластеры
-                    </Text>
-                    <Badge size="1" color="blue" variant="soft">
-                      {legend.length}
-                    </Badge>
-                  </Flex>
-
-                  {focusCluster !== null && (
-                    <Text
-                      size="1"
-                      color="blue"
-                      style={{ cursor: 'pointer', textDecoration: 'underline' }}
-                      onClick={() => setFocusCluster(null)}
-                    >
-                      Показать все кластеры
-                    </Text>
-                  )}
-
-                  <Flex direction="column" gap="1">
-                    {legend.map(row => (
-                      <Box
-                        key={row.id}
-                        onClick={() => setFocusCluster(focusCluster === row.id ? null : row.id)}
-                        style={{
-                          cursor: 'pointer',
-                          borderRadius: 'var(--radius-2)',
-                          padding: '5px 8px',
-                          background: focusCluster === row.id ? 'var(--accent-3)' : undefined,
-                          transition: 'background 150ms',
-                          opacity: focusCluster !== null && focusCluster !== row.id ? 0.5 : 1
-                        }}
-                        className={focusCluster === row.id ? undefined : 'hover:bg-[var(--gray-3)]'}
+          {rightTab === 'clusters' ? (
+            <ScrollArea scrollbars="vertical" style={{ flex: 1 }}>
+              <Flex direction="column" gap="2" p="3" style={{ minWidth: 0 }}>
+                {legend.length > 0 ? (
+                  <>
+                    <Flex align="center" justify="between">
+                      <Text
+                        size="1"
+                        weight="medium"
+                        color="gray"
+                        style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
                       >
-                        <Flex align="center" gap="2">
-                          <div
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: '50%',
-                              background: paletteHex(row.id),
-                              flexShrink: 0
-                            }}
-                          />
-                          <Flex direction="column" style={{ minWidth: 0, flex: 1 }}>
-                            <Flex align="center" justify="between">
-                              <Text size="1" weight="medium">
-                                Кластер {row.id}
-                              </Text>
-                              <Text size="1" color="gray">
-                                {row.count}
-                              </Text>
+                        Кластеры
+                      </Text>
+                      <Badge size="1" color="blue" variant="soft">
+                        {legend.length}
+                      </Badge>
+                    </Flex>
+
+                    {focusCluster !== null && (
+                      <Text
+                        size="1"
+                        color="blue"
+                        style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => setFocusCluster(null)}
+                      >
+                        Показать все кластеры
+                      </Text>
+                    )}
+
+                    <Flex direction="column" gap="1">
+                      {legend.map(row => (
+                        <Box
+                          key={row.id}
+                          onClick={() => setFocusCluster(focusCluster === row.id ? null : row.id)}
+                          style={{
+                            cursor: 'pointer',
+                            borderRadius: 'var(--radius-2)',
+                            padding: '5px 8px',
+                            background: focusCluster === row.id ? 'var(--accent-3)' : undefined,
+                            transition: 'background 150ms',
+                            opacity: focusCluster !== null && focusCluster !== row.id ? 0.5 : 1
+                          }}
+                          className={
+                            focusCluster === row.id ? undefined : 'hover:bg-[var(--gray-3)]'
+                          }
+                        >
+                          <Flex align="center" gap="2">
+                            <div
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                background: paletteHex(row.id),
+                                flexShrink: 0
+                              }}
+                            />
+                            <Flex direction="column" style={{ minWidth: 0, flex: 1 }}>
+                              <Flex align="center" justify="between">
+                                <Text size="1" weight="medium">
+                                  Кластер {row.id}
+                                </Text>
+                                <Text size="1" color="gray">
+                                  {row.count}
+                                </Text>
+                              </Flex>
+                              <Badge
+                                size="1"
+                                color={
+                                  row.meanRisk > 0.7
+                                    ? 'red'
+                                    : row.meanRisk > 0.4
+                                      ? 'amber'
+                                      : 'green'
+                                }
+                                variant="soft"
+                              >
+                                {Math.round(row.meanRisk * 100)}% риск
+                              </Badge>
                             </Flex>
-                            <Badge
-                              size="1"
-                              color={
-                                row.meanRisk > 0.7 ? 'red' : row.meanRisk > 0.4 ? 'amber' : 'green'
-                              }
-                              variant="soft"
-                            >
-                              {Math.round(row.meanRisk * 100)}% риск
-                            </Badge>
                           </Flex>
-                        </Flex>
-                      </Box>
-                    ))}
-                  </Flex>
-                </>
-              )}
-            </Flex>
-          </ScrollArea>
+                        </Box>
+                      ))}
+                    </Flex>
+                  </>
+                ) : (
+                  <Text size="2" color="gray" style={{ fontStyle: 'italic' }}>
+                    Кластеры появятся после завершения анализа
+                  </Text>
+                )}
+              </Flex>
+            </ScrollArea>
+          ) : (
+            <ScrollArea scrollbars="vertical" style={{ flex: 1 }}>
+              <AnalysisMetadataPanel metadata={analysisResult?.clustering?.metadata ?? null} />
+            </ScrollArea>
+          )}
         </Flex>
 
         {selectedNode && (

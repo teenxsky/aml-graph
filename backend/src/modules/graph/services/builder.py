@@ -1,28 +1,36 @@
 import io
+import logging
 
 import networkx as nx
 import pandas as pd
 
+from src.modules.graph.parsing.entity_classifier import (
+    classify_ibm_entity_type,
+    normalize_entity_type,
+)
 from src.modules.graph.services.layout import compute_graph_layout
 from src.shared.schemas import ColumnMapping
 
 __all__ = ['GraphBuilder']
 
-# Порядок важен: 'CO' проверяем раньше 'C'
-_ENTITY_PREFIXES: list[tuple[str, str]] = [
-    ('CO', 'company'),
-    ('C', 'client'),
-    ('A', 'account'),
-    ('D', 'device'),
-]
+logger = logging.getLogger(__name__)
 
 
-def _infer_entity_type(node_id: str) -> str:
-    """Определяет тип сущности по префиксу идентификатора узла."""
-    for prefix, entity_type in _ENTITY_PREFIXES:
-        if node_id.startswith(prefix):
-            return entity_type
-    return 'unknown'
+def _apply_entity_type(
+    graph: nx.Graph,
+    node_id: str,
+    entity_type: str,
+    row_idx: int,
+) -> None:
+    """Обновить entity_type существующего узла с разрешением конфликтов (first-seen-wins)."""
+    existing = graph.nodes[node_id].get('entity_type')
+    if existing is None:
+        graph.nodes[node_id]['entity_type'] = entity_type
+    elif existing != entity_type:
+        logger.warning(
+            'Конфликт entity_type для узла %s (строка %d): уже задан %r, найден %r - оставляем %r.',
+            node_id, row_idx, existing, entity_type, existing,
+        )
 
 
 def _extract_optional_col(
@@ -33,12 +41,6 @@ def _extract_optional_col(
     if col and col in columns and pd.notna(row[col]):
         return str(row[col])
     return None
-
-
-def _resolve_entity_type(node_id: str, row: pd.Series, has_entity_col: bool) -> str:
-    if has_entity_col and pd.notna(row.get('entity_type')):
-        return str(row['entity_type'])
-    return _infer_entity_type(node_id)
 
 
 def _build_node_id(row: pd.Series, id_col: str, bank_col: str | None) -> str:
@@ -66,14 +68,28 @@ class GraphBuilder:
         file_bytes: bytes,
         column_mapping: ColumnMapping,
     ) -> nx.DiGraph:
-        """Строит ориентированный граф из CSV-файла с заданным маппингом столбцов."""
+        """Строит ориентированный граф из CSV-файла с заданным маппингом столбцов.
+
+        Поля sender_entity_type и receiver_entity_type в маппинге указывают
+        на колонки CSV с онтологическим типом каждой стороны транзакции.
+        Значения нормализуются через normalize_entity_type - при невалидном
+        значении бросается InvalidEntityTypeError.
+        """
         df = pd.read_csv(io.BytesIO(file_bytes))
         graph = nx.DiGraph()
-        has_entity_col = 'entity_type' in df.columns
 
-        for idx, row in df.iterrows():
+        for row_num_0, (_, row) in enumerate(df.iterrows()):
+            row_num = row_num_0 + 2  # CSV row number: +1 for 1-index, +1 for header
+
             sender = _build_node_id(row, column_mapping.sender_id, column_mapping.sender_bank)
             receiver = _build_node_id(row, column_mapping.receiver_id, column_mapping.receiver_bank)
+
+            sender_entity_type = normalize_entity_type(
+                row[column_mapping.sender_entity_type], row=row_num,
+            )
+            receiver_entity_type = normalize_entity_type(
+                row[column_mapping.receiver_entity_type], row=row_num,
+            )
 
             amount_paid = float(row[column_mapping.amount_paid])
 
@@ -97,12 +113,11 @@ class GraphBuilder:
                 raise ValueError(f'Invalid timestamp value: {row[column_mapping.timestamp]}')
             timestamp = int(raw_timestamp.timestamp())
 
-            for node_id, raw_id in (
-                (sender, str(row[column_mapping.sender_id])),
-                (receiver, str(row[column_mapping.receiver_id])),
+            for node_id, entity_type in (
+                (sender, sender_entity_type),
+                (receiver, receiver_entity_type),
             ):
                 if node_id not in graph:
-                    entity_type = _resolve_entity_type(raw_id, row, has_entity_col)
                     graph.add_node(
                         node_id,
                         entity_type=entity_type,
@@ -112,6 +127,8 @@ class GraphBuilder:
                         out_flow=0.0,
                         is_laundering_node=False,
                     )
+                else:
+                    _apply_entity_type(graph, node_id, entity_type, row_num)
 
             if device_id:
                 graph.nodes[sender]['device_ids'].add(device_id)
@@ -129,8 +146,8 @@ class GraphBuilder:
             graph.add_edge(
                 sender,
                 receiver,
-                id=f'tx_{idx}',
-                transaction_id=f'tx_{idx}',
+                id=f'tx_{row_num_0}',
+                transaction_id=f'tx_{row_num_0}',
                 amount_paid=amount_paid,
                 amount=amount_paid,
                 amount_received=amount_received,
@@ -150,7 +167,12 @@ class GraphBuilder:
 
     @staticmethod
     def build_from_normalized_transactions(df: pd.DataFrame) -> nx.MultiDiGraph:
-        """Строит мультиграф транзакций из нормализованных записей транзакций."""
+        """Строит мультиграф транзакций из нормализованных записей транзакций.
+
+        Entity-тип узлов IBM AML датасета определяется правилом:
+        если from_bank == to_bank - оба узла 'individual' (внутрибанковский перевод),
+        иначе - 'account' (межбанковский, владелец неоднозначен).
+        """
         required = {'transaction_id', 'timestamp', 'sender_id', 'receiver_id', 'amount'}
         missing = required - set(df.columns)
         if missing:
@@ -158,7 +180,8 @@ class GraphBuilder:
 
         graph = nx.MultiDiGraph()
 
-        for _, row in df.iterrows():
+        for row_num_0, (_, row) in enumerate(df.iterrows()):
+            row_num = row_num_0 + 2  # CSV row number: +1 for 1-index, +1 for header
             sender = str(row['sender_id'])
             receiver = str(row['receiver_id'])
             transaction_id = str(row['transaction_id'])
@@ -168,13 +191,17 @@ class GraphBuilder:
                 raise ValueError(f'Invalid normalized timestamp: {row["timestamp"]}')
             timestamp = int(timestamp_raw.timestamp())
 
+            from_bank = sender.split(':', 1)[0] if ':' in sender else None
+            to_bank = receiver.split(':', 1)[0] if ':' in receiver else None
+            entity_type = classify_ibm_entity_type(from_bank, to_bank)
+
             for node_id in (sender, receiver):
                 if node_id not in graph:
                     graph.add_node(
                         node_id,
                         id=node_id,
-                        type='account',
-                        entity_type='account',
+                        type=entity_type,
+                        entity_type=entity_type,
                         label=node_id,
                         risk_score=0.0,
                         alerts=[],
@@ -184,6 +211,8 @@ class GraphBuilder:
                         out_flow=0.0,
                         is_laundering_node=False,
                     )
+                else:
+                    _apply_entity_type(graph, node_id, entity_type, row_num)
 
             amount_received = (
                 float(row['amount_received'])

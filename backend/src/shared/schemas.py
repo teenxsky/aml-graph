@@ -13,12 +13,19 @@ T = TypeVar('T')
 
 
 class ColumnMapping(BaseModel):
-    """DTO для задания соответствий полей входного датасета с полями датасета IBM AMLSlim."""
+    """DTO для задания соответствий полей входного датасета с полями датасета IBM AMLSlim.
+
+    Поля sender_entity_type и receiver_entity_type обязательны: они указывают
+    колонки CSV, из которых берётся онтологический тип каждой стороны транзакции.
+    Допустимые значения в колонках: account, individual, business, payment_institution.
+    """
 
     sender_id: str
     receiver_id: str
     amount_paid: str
     timestamp: str
+    sender_entity_type: str
+    receiver_entity_type: str
     sender_bank: str | None = None
     receiver_bank: str | None = None
     amount_received: str | None = None

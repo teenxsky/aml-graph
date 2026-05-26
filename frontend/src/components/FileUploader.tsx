@@ -159,7 +159,7 @@ export default function FileUploader() {
         </Flex>
         {format === 'IBM' ? (
           <Text size="1" color="gray">
-            Стандартный формат IBM AML — маппинг колонок не требуется
+            Стандартный формат IBM AML - маппинг колонок не требуется
           </Text>
         ) : (
           <Text size="1" color="gray">

@@ -229,7 +229,7 @@ def detect_fanout(
     return results
 
 
-def detect_transit(graph: nx.DiGraph, top_k: int = 50) -> list[dict]:
+def detect_transit(graph: nx.DiGraph, top_k: int = 500) -> list[dict]:
     """Определяет транзитные узлы: высокая betweenness + входящий ≈ исходящий поток."""
     if len(graph) == 0:
         return []
@@ -277,11 +277,7 @@ def detect_transit(graph: nx.DiGraph, top_k: int = 50) -> list[dict]:
                     'type': 'transit',
                     'score': score,
                     'node_ids': [node_str],
-                    'edge_ids': [
-                        _edge_id(u, v, data)
-                        for u, v, data in _iter_edges(graph)
-                        if str(u) == node_str or str(v) == node_str
-                    ],
+                    'edge_ids': [],
                     'metrics': {
                         'f_in': in_f,
                         'f_out': out_f,

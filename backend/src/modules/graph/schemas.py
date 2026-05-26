@@ -10,6 +10,8 @@ __all__ = [
     'EdgeChunk',
     'DetectorResult',
     'ClusteringMetadata',
+    'StepTiming',
+    'AnalysisMetadata',
     'AnalysisResultData',
 ]
 
@@ -25,12 +27,18 @@ class GraphMeta(BaseModel):
 class NodeData(BaseModel):
     """Один узел графа с макетом и оценочными данными.
 
-    Поля ``x`` и ``y`` содержат нормализованные координаты в диапазоне ``[-1, 1]``
+    Поля x и y содержат нормализованные координаты в диапазоне [-1, 1]
     при использовании иерархического layout. Frontend масштабирует их под размер canvas.
+
+    entity_type - онтологическая категория (account / individual / business /
+    payment_institution), задаётся источником данных.
+    behavioral_role - поведенческая роль в графе (regular / hub / transit /
+    isolated), вычисляется бэкендом после построения графа.
     """
 
     id: str
     entity_type: str
+    behavioral_role: str = 'regular'
     type: str | None = None
     label: str | None = None
     x: float
@@ -88,6 +96,42 @@ class ClusteringMetadata(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
+class StepTiming(BaseModel):
+    """Время выполнения одного шага пайплайна."""
+
+    step: str
+    duration_ms: int
+    started_at: str   # ISO 8601 datetime
+    finished_at: str  # ISO 8601 datetime
+
+
+class AnalysisMetadata(BaseModel):
+    """Структурированные метаданные процесса анализа графа.
+
+    Содержит информацию обо всех алгоритмах применённых при обработке
+    графа и обоснованиях их выбора.
+    """
+
+    n_nodes: int = 0
+    n_edges: int = 0
+    density: float = 0.0
+    is_directed: bool = True
+
+    clustering_method: str = ''
+    clustering_reason: str = ''
+    clustering_extra: dict[str, Any] = Field(default_factory=dict)
+
+    scoring_weights: dict[str, float] = Field(default_factory=dict)
+    scoring_reason: str = ''
+    betweenness_exact: bool = True
+    betweenness_k: int = 0
+
+    step_timings: list[StepTiming] = Field(default_factory=list)
+    total_duration_ms: int = 0
+
+    algorithm_versions: dict[str, str] = Field(default_factory=dict)
+
+
 class AnalysisResultData(BaseModel):
     """Результат аналитического этапа: кластеризация + метаданные layout.
 
@@ -98,6 +142,7 @@ class AnalysisResultData(BaseModel):
     labels: list[int]
     node_ids: list[str]
     cluster_centroids_2d: list[tuple[float, float]]
+    type_centroids: dict[str, list[float]] = Field(default_factory=dict)
     n_clusters: int
     method: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: AnalysisMetadata = Field(default_factory=AnalysisMetadata)
