@@ -44,7 +44,7 @@ ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
 FROM backend AS task-worker
 WORKDIR /app
 
-ENTRYPOINT ["uv", "run", "taskiq", "worker", "src.task_worker:broker", "-r", "--workers", "4", "--max-threadpool-threads", "8"]
+ENTRYPOINT ["uv", "run", "taskiq", "worker", "src.task_worker:broker", "-r", "--workers", "4", "--max-threadpool-threads", "8", "--shutdown-timeout", "999999"]
 
 
 # ========================= Frontend App =========================
