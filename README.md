@@ -1,8 +1,8 @@
 # AML Graph Visualizer (aml-graph)
 
-[ui_screenshot](docs/ui_screenshot.png)
+![ui_screenshot](docs/ui_screenshot.png)
 
-[architecture](docs/architecture.png)
+![architecture](docs/architecture.png)
 
 ---
 
