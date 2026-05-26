@@ -162,13 +162,28 @@ function buildLinkColors(
   edges: EdgeData[],
   idxMap: Map<string, number>,
   nodes: NodeData[],
-  highlighted: Set<string> | null
+  highlighted: Set<string> | null,
+  hidden: Set<string>,
+  hiddenRoles: Set<string>
 ): Float32Array {
   const arr = new Float32Array(edges.length * 4)
   for (let i = 0; i < edges.length; i++) {
     const e = edges[i]
     const si = idxMap.get(e.source)
     const ti = idxMap.get(e.target)
+    const srcNode = si !== undefined ? nodes[si] : null
+    const tgtNode = ti !== undefined ? nodes[ti] : null
+    const isEdgeHidden =
+      (srcNode !== null &&
+        (hidden.has(srcNode.entity_type) || hiddenRoles.has(srcNode.behavioral_role))) ||
+      (tgtNode !== null &&
+        (hidden.has(tgtNode.entity_type) || hiddenRoles.has(tgtNode.behavioral_role)))
+
+    if (isEdgeHidden) {
+      arr[i * 4 + 3] = 0
+      continue
+    }
+
     const isHighEdge =
       highlighted !== null &&
       si !== undefined &&
@@ -200,13 +215,28 @@ function buildLinkWidths(
   edges: EdgeData[],
   idxMap: Map<string, number>,
   nodes: NodeData[],
-  highlighted: Set<string> | null
+  highlighted: Set<string> | null,
+  hidden: Set<string>,
+  hiddenRoles: Set<string>
 ): Float32Array {
   const arr = new Float32Array(edges.length)
   for (let i = 0; i < edges.length; i++) {
     const e = edges[i]
     const si = idxMap.get(e.source)
     const ti = idxMap.get(e.target)
+    const srcNode = si !== undefined ? nodes[si] : null
+    const tgtNode = ti !== undefined ? nodes[ti] : null
+    const isEdgeHidden =
+      (srcNode !== null &&
+        (hidden.has(srcNode.entity_type) || hiddenRoles.has(srcNode.behavioral_role))) ||
+      (tgtNode !== null &&
+        (hidden.has(tgtNode.entity_type) || hiddenRoles.has(tgtNode.behavioral_role)))
+
+    if (isEdgeHidden) {
+      arr[i] = 0
+      continue
+    }
+
     const hi =
       highlighted !== null &&
       si !== undefined &&
@@ -245,16 +275,20 @@ function drawEntityHalos(
 
     ctx.beginPath()
     ctx.arc(cxS, cyS, maxR, 0, Math.PI * 2)
-    ctx.fillStyle = color + '14'
+    ctx.fillStyle = color + '26'
     ctx.fill()
-    ctx.strokeStyle = color + '25'
-    ctx.lineWidth = 1
+    ctx.strokeStyle = color + '66'
+    ctx.lineWidth = 1.5
     ctx.stroke()
 
-    ctx.font = 'bold 12px sans-serif'
+    ctx.font = 'bold 13px sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillStyle = color + '80'
-    ctx.fillText(ENTITY_LABELS[type] ?? type, cxS, cyS - maxR + 16)
+    ctx.textBaseline = 'alphabetic'
+    ctx.shadowColor = '#0d1117'
+    ctx.shadowBlur = 6
+    ctx.fillStyle = color
+    ctx.fillText(ENTITY_LABELS[type] ?? type, cxS, cyS - maxR - 6)
+    ctx.shadowBlur = 0
   }
 }
 
@@ -627,8 +661,12 @@ export default function GraphCanvas({
     g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
     g.setPointShapes(new Float32Array(nodes.length))
     g.setLinks(links)
-    g.setLinkColors(buildLinkColors(validEdges, idxMap, nodes, highlightedNodeIds))
-    g.setLinkWidths(buildLinkWidths(validEdges, idxMap, nodes, highlightedNodeIds))
+    g.setLinkColors(
+      buildLinkColors(validEdges, idxMap, nodes, highlightedNodeIds, hiddenEntityTypes, hiddenRoles)
+    )
+    g.setLinkWidths(
+      buildLinkWidths(validEdges, idxMap, nodes, highlightedNodeIds, hiddenEntityTypes, hiddenRoles)
+    )
 
     if (clustering?.cluster_centroids_2d && clusterMap) {
       const raw = clustering.cluster_centroids_2d
@@ -673,8 +711,12 @@ export default function GraphCanvas({
       )
     )
     g.setPointSizes(buildSizes(nodes, hiddenEntityTypes, hiddenRoles, sizeScale, scoring))
-    g.setLinkColors(buildLinkColors(validEdges, idxMap, nodes, effectiveHighlight))
-    g.setLinkWidths(buildLinkWidths(validEdges, idxMap, nodes, effectiveHighlight))
+    g.setLinkColors(
+      buildLinkColors(validEdges, idxMap, nodes, effectiveHighlight, hiddenEntityTypes, hiddenRoles)
+    )
+    g.setLinkWidths(
+      buildLinkWidths(validEdges, idxMap, nodes, effectiveHighlight, hiddenEntityTypes, hiddenRoles)
+    )
     g.setPointClusterStrength(buildClusterStrength(nodes.length, scoring))
     g.render()
   }, [

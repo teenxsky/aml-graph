@@ -122,7 +122,7 @@ export default function RecentJobs() {
                         whiteSpace: 'nowrap'
                       }}
                     >
-                      {job.id.slice(0, 8)}…
+                      {job.id.slice(0, 8)}...
                     </Text>
                   </Flex>
                   <Text size="1" color="gray">
