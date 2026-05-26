@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { Badge, Box, Button, Flex, ScrollArea, Separator, Spinner, Text } from '@radix-ui/themes'
-import { ChevronLeftIcon } from '@radix-ui/react-icons'
+import { ChevronLeftIcon, ExclamationTriangleIcon } from '@radix-ui/react-icons'
 import { createSSEClient } from '@/lib/sse-client'
 import type { NodeData } from '@/types/graph/node'
 import type { EdgeData } from '@/types/graph/edge'
@@ -12,7 +12,7 @@ import type { GraphMeta } from '@/types/graph/meta'
 import type { DetectorResult } from '@/types/graph/detector'
 import type { StreamStage } from '@/types/graph/stream'
 import type { AnalysisResult, ClusteringResult, NodeScoringResult } from '@/types/graph/analysis'
-import StreamProgress from '@/components/StreamProgress'
+import StreamProgress, { JOB_STATUS_LABEL } from '@/components/StreamProgress'
 import Sidebar from '@/components/Sidebar'
 import DetailPanel from '@/components/DetailPanel'
 import AnalysisMetadataPanel from '@/components/AnalysisMetadataPanel'
@@ -104,6 +104,8 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
   const pendingEdgesRef = useRef<EdgeData[]>([])
 
   const [stage, setStage] = useState<StreamStage>('connecting')
+  const [jobStatus, setJobStatus] = useState<string>('')
+  const [errorMessage, setErrorMessage] = useState<string>('')
   const [graphMeta, setGraphMeta] = useState<GraphMeta | null>(null)
   const [nodes, setNodes] = useState<NodeData[]>([])
   const [edges, setEdges] = useState<EdgeData[]>([])
@@ -154,10 +156,11 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
         setEdges([...pendingEdgesRef.current])
         setStage('done')
       },
-      onStatus: () => {
-        setStage(prev => (prev === 'connecting' ? 'streaming' : prev))
+      onStatus: data => {
+        setJobStatus(data.status)
       },
-      onServerError: () => {
+      onServerError: data => {
+        setErrorMessage(data.message)
         setStage('error')
       },
       onDetectorResult: result => {
@@ -169,7 +172,13 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
         setEdges(prev => (prev.length > 0 ? prev : [...pendingEdgesRef.current]))
         setStage('done')
       },
-      onError: () => setStage(prev => (prev === 'done' ? 'done' : 'error'))
+      onError: () => {
+        setStage(prev => {
+          if (prev === 'done') return 'done'
+          setErrorMessage('Соединение с сервером прервано')
+          return 'error'
+        })
+      }
     })
     return () => client.close()
   }, [sessionId])
@@ -250,6 +259,7 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
 
       <StreamProgress
         stage={stage}
+        jobStatus={jobStatus}
         nodeCount={graphMeta?.node_count}
         edgeCount={graphMeta?.edge_count}
         receivedNodes={receivedNodeCount}
@@ -303,8 +313,37 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             >
               <Spinner size="3" />
               <Text size="2" color="gray">
-                {stage === 'connecting' ? 'Подключение...' : 'Построение графа...'}
+                {stage === 'connecting'
+                  ? (jobStatus ? (JOB_STATUS_LABEL[jobStatus] ?? 'Обработка задачи...') : 'Подключение...')
+                  : 'Загрузка данных графа...'}
               </Text>
+            </Flex>
+          )}
+          {stage === 'error' && (
+            <Flex
+              direction="column"
+              align="center"
+              justify="center"
+              gap="4"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 10,
+                background: 'rgba(13, 17, 23, 0.92)',
+              }}
+            >
+              <ExclamationTriangleIcon width="36" height="36" color="var(--red-9)" />
+              <Flex direction="column" align="center" gap="2">
+                <Text size="4" weight="medium" color="red">
+                  Ошибка обработки
+                </Text>
+                <Text size="2" color="gray" style={{ maxWidth: 400, textAlign: 'center' }}>
+                  {errorMessage || 'Произошла неизвестная ошибка'}
+                </Text>
+              </Flex>
+              <Button onClick={() => router.push('/')} color="gray" variant="soft" size="2">
+                На главную
+              </Button>
             </Flex>
           )}
           <GraphCanvas
