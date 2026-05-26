@@ -1,5 +1,11 @@
 # AML Graph Visualizer (aml-graph)
 
+[ui_screenshot](docs/ui_screenshot.png)
+
+[architecture](docs/architecture.png)
+
+---
+
 ## О проекте
 
 **AML Graph Visualizer** - инструмент для финансовых следователей, позволяющий визуализировать транзакционные графы и
