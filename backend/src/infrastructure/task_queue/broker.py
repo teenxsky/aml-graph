@@ -9,7 +9,11 @@ __all__ = ['rabbitmq_broker']
 
 
 rabbitmq_broker: AsyncBroker = AioPikaBroker(
-    url=str(settings.rabbitmq.dsn),
-).with_result_backend(RedisAsyncResultBackend(redis_url=str(settings.redis.dsn)))
+    url=f'{settings.rabbitmq.dsn}',
+).with_result_backend(
+    RedisAsyncResultBackend(
+        redis_url=str(settings.redis.dsn),
+    ),
+)
 
 rabbitmq_broker.add_middlewares(PipelineMiddleware())
