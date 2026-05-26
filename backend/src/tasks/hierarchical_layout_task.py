@@ -1,11 +1,11 @@
 import logging
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import networkx as nx
 from dishka.integrations.taskiq import FromDishka, inject
 
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.modules.graph.analytics.clustering import ClusteringResult
 from src.modules.graph.services.hierarchical_layout import compute_hierarchical_layout
 from src.modules.jobs.enums import JobStatus
@@ -30,19 +30,20 @@ _ALGORITHM_VERSIONS: dict[str, str] = {
 async def hierarchical_layout_task(
     job_id: str,
     job_repository: FromDishka[JobRepository],
-    graph_artifact_store: FromDishka[GraphArtifactStore],
+    redis_artifact_store: FromDishka[RedisArtifactStore],
 ) -> str:
-    """Посчитать иерархический layout с учётом кластеризации.
+    """
+    Посчитать иерархический layout с учётом кластеризации.
 
-    Координаты сохраняются в ``data['layout']`` (заменяют предыдущий layout)
+    Координаты сохраняются в data['layout'] (заменяют предыдущий layout)
     в нормализованном диапазоне [-1, 1]. Также сохраняет ``data['analysis_result']``
     для последующей отправки через SSE, включая структурированные метаданные.
     """
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     try:
         await job_repository.update_status(job_id, JobStatus.HIERARCHICAL_LAYOUT)
 
-        data = graph_artifact_store.load(job_id)
+        data = await redis_artifact_store.load(job_id)
         graph: nx.MultiDiGraph = data['graph']
         clustering_result: ClusteringResult = data['clustering_result']
 
@@ -133,7 +134,7 @@ async def hierarchical_layout_task(
         data['layout'] = layout
         data['analysis_result'] = analysis_result
         data['step_timings'] = step_timings
-        graph_artifact_store.save(job_id, data)
+        await redis_artifact_store.save(job_id, data)
 
         logger.info(
             'hierarchical_layout_task завершён для job %s: %d узлов, %d кластеров',

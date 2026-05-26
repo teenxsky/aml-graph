@@ -1,10 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dishka.integrations.taskiq import FromDishka, inject
 
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.modules.graph.analytics.clustering import cluster_graph
 from src.modules.jobs.enums import JobStatus
 from src.modules.jobs.repositories.job import JobRepository
@@ -20,18 +20,19 @@ logger = logging.getLogger(__name__)
 async def cluster_graph_task(
     job_id: str,
     job_repository: FromDishka[JobRepository],
-    graph_artifact_store: FromDishka[GraphArtifactStore],
+    redis_artifact_store: FromDishka[RedisArtifactStore],
 ) -> str:
-    """Кластеризовать граф методом из analysis_strategy и сохранить результат.
+    """
+    Кластеризовать граф методом из analysis_strategy и сохранить результат.
 
     Выполняется после score_and_layout_task. Метод кластеризации определяется
     автоматически в select_strategy_task. Результат используется hierarchical_layout_task.
     """
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     try:
         await job_repository.update_status(job_id, JobStatus.CLUSTERING)
 
-        data = graph_artifact_store.load(job_id)
+        data = await redis_artifact_store.load(job_id)
         graph = data['graph']
 
         strategy = data.get('analysis_strategy', {})
@@ -44,7 +45,7 @@ async def cluster_graph_task(
             random_state=settings.clustering.random_state,
         )
 
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(UTC)
         duration_ms = int((finished - started).total_seconds() * 1000)
 
         data['clustering_result'] = clustering_result
@@ -58,7 +59,7 @@ async def cluster_graph_task(
         })
         data['step_timings'] = step_timings
 
-        graph_artifact_store.save(job_id, data)
+        await redis_artifact_store.save(job_id, data)
 
         logger.info(
             'cluster_graph_task завершён для job %s: метод=%s, кластеров=%d',

@@ -1,10 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dishka.integrations.taskiq import FromDishka, inject
 
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.modules.graph.analytics.detectors import (
     detect_cycles,
     detect_fanout,
@@ -25,14 +25,14 @@ logger = logging.getLogger(__name__)
 async def detect_patterns_task(
     job_id: str,
     job_repository: FromDishka[JobRepository],
-    graph_artifact_store: FromDishka[GraphArtifactStore],
+    redis_artifact_store: FromDishka[RedisArtifactStore],
 ) -> str:
     """Запускает детекторы AML-паттернов (циклы, fanout, транзит, общие устройства)."""
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     try:
         await job_repository.update_status(job_id, JobStatus.DETECTING)
 
-        data = graph_artifact_store.load(job_id)
+        data = await redis_artifact_store.load(job_id)
         graph = data['graph']
 
         cycles = detect_cycles(graph)
@@ -40,7 +40,7 @@ async def detect_patterns_task(
         transit = detect_transit(graph)
         shared_device = detect_shared_device(graph)
 
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(UTC)
         duration_ms = int((finished - started).total_seconds() * 1000)
 
         data['detector_results'] = {
@@ -60,7 +60,7 @@ async def detect_patterns_task(
         })
         data['step_timings'] = step_timings
 
-        graph_artifact_store.save(job_id, data)
+        await redis_artifact_store.save(job_id, data)
         return job_id
 
     except Exception as e:

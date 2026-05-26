@@ -1,11 +1,11 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dishka.integrations.taskiq import FromDishka, inject
 
 from src.infrastructure.storage.csv_store import CsvStore
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.modules.graph.parsing.ibm import read_ibm_transactions
 from src.modules.graph.services.builder import GraphBuilder
 from src.modules.jobs.enums import JobStatus, UploadFormat
@@ -24,10 +24,10 @@ async def build_graph_task(
     job_repository: FromDishka[JobRepository],
     csv_store: FromDishka[CsvStore],
     graph_builder: FromDishka[GraphBuilder],
-    graph_artifact_store: FromDishka[GraphArtifactStore],
+    redis_artifact_store: FromDishka[RedisArtifactStore],
 ) -> str:
-    """Парсит CSV и строит NetworkX-граф; результат сохраняет в artifact store."""
-    started = datetime.now(timezone.utc)
+    """Парсит CSV и строит NetworkX-граф; результат сохраняет в Redis artifact store."""
+    started = datetime.now(UTC)
     try:
         await job_repository.update_status(job_id, JobStatus.GRAPH_BUILDING)
 
@@ -45,18 +45,23 @@ async def build_graph_task(
             mapping = ColumnMapping.model_validate(job.column_mapping)
             graph = graph_builder.build_from_csv(file_bytes, mapping)
 
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(UTC)
         duration_ms = int((finished - started).total_seconds() * 1000)
 
-        graph_artifact_store.save(job_id, {
-            'graph': graph,
-            'step_timings': [{
-                'step': 'build_graph',
-                'duration_ms': duration_ms,
-                'started_at': started.isoformat(),
-                'finished_at': finished.isoformat(),
-            }],
-        })
+        await redis_artifact_store.save(
+            job_id,
+            {
+                'graph': graph,
+                'step_timings': [
+                    {
+                        'step': 'build_graph',
+                        'duration_ms': duration_ms,
+                        'started_at': started.isoformat(),
+                        'finished_at': finished.isoformat(),
+                    },
+                ],
+            },
+        )
         return job_id
 
     except Exception as e:

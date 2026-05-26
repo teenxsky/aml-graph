@@ -1,10 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dishka.integrations.taskiq import FromDishka, inject
 
-from src.infrastructure.storage.graph_artifacts import GraphArtifactStore
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.storage.redis_artifacts import RedisArtifactStore
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.modules.graph.analytics.adaptive_strategy import select_strategy
 from src.modules.jobs.enums import JobStatus
 from src.modules.jobs.repositories.job import JobRepository
@@ -19,21 +19,21 @@ logger = logging.getLogger(__name__)
 async def select_strategy_task(
     job_id: str,
     job_repository: FromDishka[JobRepository],
-    graph_artifact_store: FromDishka[GraphArtifactStore],
+    redis_artifact_store: FromDishka[RedisArtifactStore],
 ) -> str:
     """Выбрать стратегию обработки графа и сохранить в artifact store.
 
     Запускается между build_graph и detect_patterns. Результат используется
     cluster_graph_task и score_and_layout_task. Инициализирует список step_timings.
     """
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     try:
-        data = graph_artifact_store.load(job_id)
+        data = await redis_artifact_store.load(job_id)
         graph = data['graph']
 
         strategy = select_strategy(graph)
 
-        finished = datetime.now(timezone.utc)
+        finished = datetime.now(UTC)
         duration_ms = int((finished - started).total_seconds() * 1000)
 
         step_timings: list[dict] = data.get('step_timings', [])
@@ -58,7 +58,7 @@ async def select_strategy_task(
             'betweenness_k': strategy.betweenness_k,
         }
         data['step_timings'] = step_timings
-        graph_artifact_store.save(job_id, data)
+        await redis_artifact_store.save(job_id, data)
 
         logger.info(
             'select_strategy_task завершён для job %s: метод=%s, n=%d',
