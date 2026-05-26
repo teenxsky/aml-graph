@@ -12,7 +12,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return (await res.json()) as Promise<T>
 }
 
-/** POST /api/v1/graph/processing/ibm — загрузка IBM AML CSV без маппинга. */
+/** POST /api/v1/graph/processing/ibm - загрузка IBM AML CSV без маппинга. */
 export async function uploadIbm(file: File): Promise<ResponseDTO<JobCreated>> {
   const form = new FormData()
   form.append('file', file)
@@ -23,7 +23,7 @@ export async function uploadIbm(file: File): Promise<ResponseDTO<JobCreated>> {
   return handleResponse<ResponseDTO<JobCreated>>(res)
 }
 
-/** POST /api/v1/graph/processing — загрузка CSV с маппингом колонок. */
+/** POST /api/v1/graph/processing - загрузка CSV с маппингом колонок. */
 export async function uploadCsv(
   file: File,
   columnMapping: ColumnMapping
@@ -38,13 +38,13 @@ export async function uploadCsv(
   return handleResponse<ResponseDTO<JobCreated>>(res)
 }
 
-/** GET /api/v1/algorithms — описания алгоритмов для вкладки метаданных. */
+/** GET /api/v1/algorithms - описания алгоритмов для вкладки метаданных. */
 export async function fetchAlgorithms(): Promise<AlgorithmDescription[]> {
   const res = await fetch(`${API_BASE}/api/v1/algorithms`)
   return handleResponse<AlgorithmDescription[]>(res)
 }
 
-/** GET /api/v1/graph/processing/latest — последние задачи текущего пользователя. */
+/** GET /api/v1/graph/processing/latest - последние задачи текущего пользователя. */
 export async function getLatestJobs(
   page = 1,
   pageSize = 10

@@ -4,13 +4,13 @@
 характеристик графа (степени, betweenness centrality, баланс потоков).
 Это второй слой классификации поверх онтологического entity_type:
 entity_type отвечает на вопрос "что узел есть в реальности",
-behavioral_role — "как узел ведёт себя в графе".
+behavioral_role - "как узел ведёт себя в графе".
 
 Правила классификации применяются эксклюзивно в фиксированном порядке:
-1. isolated  — степень ≤ 2 и общий поток мал
-2. hub       — степень в top 5% по графу
-3. transit   — betweenness в top 10% И сбалансированные потоки
-4. regular   — всё остальное (дефолт)
+1. isolated  - степень ≤ 2 и общий поток мал
+2. hub       - степень в top 5% по графу
+3. transit   - betweenness в top 10% И сбалансированные потоки
+4. regular   - всё остальное (дефолт)
 """
 
 from __future__ import annotations
@@ -33,27 +33,26 @@ def classify_behavioral_roles(
     *,
     betweenness_scores: dict[str, float] | None = None,
 ) -> dict[str, BehavioralRole]:
-    """Вычислить behavioral_role для каждого узла графа.
+    """
+    Вычислить behavioral_role для каждого узла графа.
 
-    Args:
-        graph: Граф с заполненными атрибутами in_flow, out_flow на узлах.
-        betweenness_scores: Предвычисленные betweenness centrality.
-            Если None — вычисляется здесь через nx.betweenness_centrality.
-
-    Returns:
-        Словарь node_id → BehavioralRole.
+    :param graph: Граф с заполненными атрибутами in_flow, out_flow на узлах.
+    :param betweenness_scores: Предвычисленные betweenness centrality.
+        Если None - вычисляется здесь через nx.betweenness_centrality.
+    :return: Словарь node_id → BehavioralRole.
     """
     n = graph.number_of_nodes()
     if n == 0:
         return {}
 
     degrees: dict[str, int] = {
-        node_id: graph.in_degree(node_id) + graph.out_degree(node_id)
-        for node_id in graph.nodes()
+        node_id: graph.in_degree(node_id) + graph.out_degree(node_id) for node_id in graph.nodes()
     }
 
     degree_values = np.array(list(degrees.values()), dtype=np.float64)
-    hub_threshold = float(np.percentile(degree_values, HUB_DEGREE_PERCENTILE)) if n >= 20 else float('inf')
+    hub_threshold = (
+        float(np.percentile(degree_values, HUB_DEGREE_PERCENTILE)) if n >= 20 else float('inf')
+    )
 
     if betweenness_scores is None:
         betweenness_scores = nx.betweenness_centrality(graph, normalized=True)

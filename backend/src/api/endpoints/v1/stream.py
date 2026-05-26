@@ -1,6 +1,5 @@
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
 from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
 from fastapi.sse import EventSourceResponse
 from pydantic import UUID4
 

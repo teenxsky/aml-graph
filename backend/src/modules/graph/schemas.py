@@ -27,12 +27,12 @@ class GraphMeta(BaseModel):
 class NodeData(BaseModel):
     """Один узел графа с макетом и оценочными данными.
 
-    Поля ``x`` и ``y`` содержат нормализованные координаты в диапазоне ``[-1, 1]``
+    Поля x и y содержат нормализованные координаты в диапазоне [-1, 1]
     при использовании иерархического layout. Frontend масштабирует их под размер canvas.
 
-    ``entity_type`` — онтологическая категория (account / individual / business /
+    entity_type - онтологическая категория (account / individual / business /
     payment_institution), задаётся источником данных.
-    ``behavioral_role`` — поведенческая роль в графе (regular / hub / transit /
+    behavioral_role - поведенческая роль в графе (regular / hub / transit /
     isolated), вычисляется бэкендом после построения графа.
     """
 

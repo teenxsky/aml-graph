@@ -9,7 +9,7 @@ export interface SSEHandlers {
   onNodesChunk?: (nodes: NodeData[]) => void
   onEdgesChunk?: (edges: EdgeData[]) => void
   onAnalysisResult?: (result: AnalysisResult) => void
-  /** Все данные получены — граф готов к отображению */
+  /** Все данные получены - граф готов к отображению */
   onCompleted?: (data: { job_id: string }) => void
   /** Промежуточный статус job во время обработки */
   onStatus?: (data: { status: string; job_id: string }) => void

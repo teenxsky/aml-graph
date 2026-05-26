@@ -55,12 +55,12 @@ const FALLBACK_ENTITY_TYPES: EntityTypeHint[] = [
   {
     code: 'individual',
     label_ru: 'Физлицо',
-    short_description: 'Физическое лицо — частный клиент банка.'
+    short_description: 'Физическое лицо - частный клиент банка.'
   },
   {
     code: 'business',
     label_ru: 'Юрлицо',
-    short_description: 'Юридическое лицо — компания, ИП, ООО.'
+    short_description: 'Юридическое лицо - компания, ИП, ООО.'
   },
   {
     code: 'payment_institution',
@@ -230,7 +230,7 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
                     value={(mapping[key] as string | undefined) ?? NONE}
                     onValueChange={v => handleChange(key, v)}
                   >
-                    <Select.Trigger placeholder="— выбрать —" style={{ width: '100%' }} />
+                    <Select.Trigger placeholder="- выбрать -" style={{ width: '100%' }} />
                     <Select.Content>
                       {columns.map(col => (
                         <Select.Item key={col} value={col}>
@@ -267,7 +267,7 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
                     value={(mapping[key] as string | undefined) ?? NONE}
                     onValueChange={v => handleChange(key, v)}
                   >
-                    <Select.Trigger placeholder="— выбрать —" style={{ width: '100%' }} />
+                    <Select.Trigger placeholder="- выбрать -" style={{ width: '100%' }} />
                     <Select.Content>
                       {columns.map(col => (
                         <Select.Item key={col} value={col}>
@@ -304,9 +304,9 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
                     value={(mapping[key] as string | null | undefined) ?? NONE}
                     onValueChange={v => handleChange(key, v)}
                   >
-                    <Select.Trigger placeholder="— нет —" style={{ width: '100%' }} />
+                    <Select.Trigger placeholder="- нет -" style={{ width: '100%' }} />
                     <Select.Content>
-                      <Select.Item value={NONE}>— нет —</Select.Item>
+                      <Select.Item value={NONE}>- нет -</Select.Item>
                       {columns.map(col => (
                         <Select.Item key={col} value={col}>
                           {col}
@@ -338,9 +338,9 @@ export default function ColumnMapper({ columns, preview, onSubmit, isLoading }: 
                   value={(mapping.is_laundering as string | null | undefined) ?? NONE}
                   onValueChange={v => handleChange('is_laundering', v)}
                 >
-                  <Select.Trigger placeholder="— нет —" style={{ width: '100%' }} />
+                  <Select.Trigger placeholder="- нет -" style={{ width: '100%' }} />
                   <Select.Content>
-                    <Select.Item value={NONE}>— нет —</Select.Item>
+                    <Select.Item value={NONE}>- нет -</Select.Item>
                     {columns.map(col => (
                       <Select.Item key={col} value={col}>
                         {col}

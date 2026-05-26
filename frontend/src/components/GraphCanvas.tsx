@@ -8,12 +8,11 @@ import type { NodeData } from '@/types/graph/node'
 import type { EdgeData } from '@/types/graph/edge'
 import type { ClusteringResult, NodeScoringResult } from '@/types/graph/analysis'
 
-// Entity type: primary colour for cosmos.gl points and canvas overlay.
 const ENTITY_RGB: Record<string, [number, number, number]> = {
-  account: [102 / 255, 187 / 255, 106 / 255], // #66bb6a — счёт
-  individual: [79 / 255, 195 / 255, 247 / 255], // #4fc3f7 — физлицо
-  business: [255 / 255, 167 / 255, 38 / 255], // #ffa726 — юрлицо
-  payment_institution: [171 / 255, 71 / 255, 188 / 255], // #ab47bc — платёжный институт
+  account: [102 / 255, 187 / 255, 106 / 255], // #66bb6a - счёт
+  individual: [79 / 255, 195 / 255, 247 / 255], // #4fc3f7 - физлицо
+  business: [255 / 255, 167 / 255, 38 / 255], // #ffa726 - юрлицо
+  payment_institution: [171 / 255, 71 / 255, 188 / 255], // #ab47bc - платёжный институт
   // backward compat for old data
   client: [79 / 255, 195 / 255, 247 / 255],
   company: [255 / 255, 167 / 255, 38 / 255],
@@ -54,7 +53,6 @@ const ROLE_ICONS: Record<string, { symbol: string; color: string }> = {
   hub: { symbol: '◉', color: '#ff453a' },
   transit: { symbol: '⇄', color: '#ff9f0a' },
   isolated: { symbol: '·', color: '#9ca3af' }
-  // regular — без значка
 }
 
 const COLOR_FRAUD: [number, number, number] = [239 / 255, 68 / 255, 68 / 255]
@@ -385,9 +383,8 @@ function drawTransactionParticles(
       const t = (now * 0.35 + i * 0.28 + p * 0.5) % 1
       const x = x1 + (x2 - x1) * t
       const y = y1 + (y2 - y1) * t
-      const alpha = Math.sin(t * Math.PI) * 0.85
 
-      ctx.globalAlpha = alpha
+      ctx.globalAlpha = Math.sin(t * Math.PI) * 0.85
       ctx.fillStyle = '#4a9eff'
       ctx.beginPath()
       ctx.arc(x, y, 2.2, 0, Math.PI * 2)
@@ -397,8 +394,6 @@ function drawTransactionParticles(
 
   ctx.globalAlpha = 1
 }
-
-// ── Component ────────────────────────────────────────────────────────────────
 
 export interface SimConfig {
   gravity?: number
@@ -499,7 +494,6 @@ export default function GraphCanvas({
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
   }, [])
 
-  // Init cosmos.gl
   useEffect(() => {
     if (!divRef.current) return
     graphRef.current = new Graph(divRef.current, {
@@ -545,7 +539,6 @@ export default function GraphCanvas({
     }
   }, [])
 
-  // Overlay canvas RAF loop
   useEffect(() => {
     const canvas = overlayCanvasRef.current
     if (!canvas) return
@@ -601,7 +594,6 @@ export default function GraphCanvas({
     return () => cancelAnimationFrame(rafId)
   }, [])
 
-  // Simulation config
   useEffect(() => {
     if (!graphRef.current || !simConfig) return
     graphRef.current.setConfig({
@@ -614,7 +606,6 @@ export default function GraphCanvas({
     setTimeout(() => graphRef.current?.pause(), 2000)
   }, [simConfig])
 
-  // Data update — positions, colours, links
   useEffect(() => {
     const g = graphRef.current
     if (!g || !isReady || nodes.length === 0) return
@@ -690,7 +681,6 @@ export default function GraphCanvas({
     g.pause()
   }, [isReady, nodes, edges, rerunTrigger]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Appearance-only updates (no position change)
   useEffect(() => {
     const g = graphRef.current
     if (!g || nodes.length === 0) return
@@ -732,7 +722,6 @@ export default function GraphCanvas({
     clusterMap
   ])
 
-  // Zoom to target
   useEffect(() => {
     if (!zoomTarget || !graphRef.current) return
     const idx = idxMapRef.current.get(zoomTarget.id)

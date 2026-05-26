@@ -40,7 +40,6 @@ function extractPatternNodeIds(result: {
   return ids
 }
 
-// Categorical palette mirrored from GraphCanvas for the cluster legend
 const CLUSTER_PALETTE: [number, number, number][] = [
   [100, 149, 237],
   [50, 205, 50],
@@ -266,7 +265,6 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
       />
 
       <Flex style={{ flex: 1, overflow: 'hidden' }}>
-        {/* Left sidebar */}
         <Sidebar
           detectorResults={detectorResults}
           onHighlightPattern={setHighlightedNodeIds}
@@ -301,7 +299,6 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
           }
         />
 
-        {/* Canvas */}
         <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {!isGraphReady && stage !== 'error' && (
             <Flex
@@ -314,7 +311,9 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
               <Spinner size="3" />
               <Text size="2" color="gray">
                 {stage === 'connecting'
-                  ? (jobStatus ? (JOB_STATUS_LABEL[jobStatus] ?? 'Обработка задачи...') : 'Подключение...')
+                  ? jobStatus
+                    ? (JOB_STATUS_LABEL[jobStatus] ?? 'Обработка задачи...')
+                    : 'Подключение...'
                   : 'Загрузка данных графа...'}
               </Text>
             </Flex>
@@ -329,7 +328,7 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
                 position: 'absolute',
                 inset: 0,
                 zIndex: 10,
-                background: 'rgba(13, 17, 23, 0.92)',
+                background: 'rgba(13, 17, 23, 0.92)'
               }}
             >
               <ExclamationTriangleIcon width="36" height="36" color="var(--red-9)" />
@@ -366,7 +365,6 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
           />
         </Box>
 
-        {/* Right panel: cluster legend + metadata tabs */}
         <Flex
           direction="column"
           style={{
@@ -377,7 +375,6 @@ function GraphPageContent({ sessionId }: { sessionId: string }) {
             overflow: 'hidden'
           }}
         >
-          {/* Tab bar */}
           <Flex style={{ borderBottom: '1px solid var(--gray-4)', flexShrink: 0 }}>
             {(['clusters', 'metadata'] as const).map(tab => (
               <Box

@@ -1,12 +1,3 @@
-"""
-Трёхуровневая иерархическая укладка графа.
-
-Уровни (от внешнего к внутреннему):
-1. entity_type  — семантическая группировка (client / account / company / device / unknown).
-2. AGC-кластер внутри entity_type — структурное подразделение.
-3. Узлы внутри AGC-подкластера — финальное позиционирование.
-"""
-
 import logging
 from dataclasses import dataclass
 
@@ -23,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True, frozen=True)
 class HierarchicalLayoutResult:
-    """Результат иерархической укладки.
+    """
+    Результат иерархической укладки.
 
     :param positions: Координаты узлов shape (n, 2), float32, нормализованные в [-1, 1].
     :param cluster_centroids: Координаты центров AGC-кластеров shape (n_clusters, 2), float32.
@@ -47,12 +39,13 @@ def compute_hierarchical_layout(
     intra_iterations: int = 100,
     random_state: int = 42,
 ) -> HierarchicalLayoutResult:
-    """Трёхуровневая иерархическая укладка графа.
+    """
+    Трёхуровневая иерархическая укладка графа.
 
     Уровни иерархии (от внешнего к внутреннему):
-    1. entity_type — семантическая группировка (client/account/company/device).
-    2. AGC-кластер внутри entity_type — структурное подразделение.
-    3. Узлы внутри AGC-подкластера — финальное позиционирование.
+    1. entity_type - семантическая группировка (client/account/company/device).
+    2. AGC-кластер внутри entity_type - структурное подразделение.
+    3. Узлы внутри AGC-подкластера - финальное позиционирование.
 
     :param graph: Транзакционный граф с атрибутом entity_type на каждом узле.
     :param clustering: Результат AGC/Louvain кластеризации.
@@ -68,7 +61,6 @@ def compute_hierarchical_layout(
     node_id_to_index: dict[str, int] = {str(node): i for i, node in enumerate(nodes)}
     n_clusters = clustering.n_clusters
 
-    # Entity types and cluster labels per node
     node_entity_types: list[str] = []
     for node in nodes:
         et = graph.nodes[node].get('entity_type') or 'unknown'
@@ -80,7 +72,6 @@ def compute_hierarchical_layout(
         if cluster_idx is not None:
             node_labels[our_idx] = int(clustering.labels[cluster_idx])
 
-    # === Level 1: entity-type meta-graph ===
     all_entity_types = sorted(set(node_entity_types))
 
     type_meta = nx.Graph()
@@ -102,7 +93,6 @@ def compute_hierarchical_layout(
         else:
             type_meta.add_edge(et_u, et_v, weight=1)
 
-    # === Level 2: spring layout of entity types ===
     n_types = len(all_entity_types)
     if n_types <= 1:
         type_positions: dict[str, tuple[float, float]] = dict.fromkeys(all_entity_types, (0.0, 0.0))
@@ -116,7 +106,6 @@ def compute_hierarchical_layout(
         )
         type_positions = {et: (float(p[0]), float(p[1])) for et, p in raw_type.items()}
 
-    # === Levels 3 + 4: within each entity type ===
     positions = np.zeros((n, 2), dtype=np.float32)
 
     for et in all_entity_types:
@@ -128,11 +117,9 @@ def compute_hierarchical_layout(
 
         type_radius = np.sqrt(et_size) * type_radius_factor
 
-        # AGC clusters present for this entity type (label >= 0)
         et_cluster_set = {int(node_labels[i]) for i in et_indices if node_labels[i] >= 0}
         et_clusters = sorted(et_cluster_set)
 
-        # Level 3: AGC cluster positions within this entity-type region
         if not et_clusters:
             agc_positions: dict[int, tuple[float, float]] = {}
         elif len(et_clusters) == 1:
@@ -171,7 +158,6 @@ def compute_hierarchical_layout(
                 for cid, p in raw_sub.items()
             }
 
-        # Level 4: node positions within each (entity_type, agc_cluster) pair
         for cid in et_clusters:
             cx, cy = agc_positions.get(cid, (et_cx, et_cy))
             sub_indices = [i for i in et_indices if int(node_labels[i]) == cid]
@@ -200,7 +186,6 @@ def compute_hierarchical_layout(
                     if idx is not None:
                         positions[idx] = (cx + lx, cy + ly)
 
-        # Unclustered nodes within this entity type (label == -1) placed on periphery
         unclustered = [i for i in et_indices if node_labels[i] < 0]
         if unclustered:
             peri_r = type_radius * 1.2
@@ -212,19 +197,19 @@ def compute_hierarchical_layout(
                     et_cy + peri_r * np.sin(angle),
                 )
 
-    # === Normalise to [-1, 1] ===
+    # нормализация
     max_abs = float(np.abs(positions).max())
     if max_abs > 0:
         positions /= max_abs
 
-    # === Cluster centroids (mean of each AGC cluster's normalised positions) ===
+    # кластеризация центроидов
     cluster_centroids = np.zeros((n_clusters, 2), dtype=np.float32)
     for c in range(n_clusters):
         c_idxs = [i for i in range(n) if int(node_labels[i]) == c]
         if c_idxs:
             cluster_centroids[c] = positions[c_idxs].mean(axis=0)
 
-    # === Type centroids (mean of each entity type's normalised positions) ===
+    # типизация центроидов
     type_centroids_result: dict[str, tuple[float, float]] = {}
     for et in all_entity_types:
         et_idxs = [i for i in range(n) if node_entity_types[i] == et]

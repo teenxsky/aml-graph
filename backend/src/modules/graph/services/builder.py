@@ -28,7 +28,7 @@ def _apply_entity_type(
         graph.nodes[node_id]['entity_type'] = entity_type
     elif existing != entity_type:
         logger.warning(
-            'Конфликт entity_type для узла %s (строка %d): уже задан %r, найден %r — оставляем %r.',
+            'Конфликт entity_type для узла %s (строка %d): уже задан %r, найден %r - оставляем %r.',
             node_id, row_idx, existing, entity_type, existing,
         )
 
@@ -72,7 +72,7 @@ class GraphBuilder:
 
         Поля sender_entity_type и receiver_entity_type в маппинге указывают
         на колонки CSV с онтологическим типом каждой стороны транзакции.
-        Значения нормализуются через normalize_entity_type — при невалидном
+        Значения нормализуются через normalize_entity_type - при невалидном
         значении бросается InvalidEntityTypeError.
         """
         df = pd.read_csv(io.BytesIO(file_bytes))
@@ -170,8 +170,8 @@ class GraphBuilder:
         """Строит мультиграф транзакций из нормализованных записей транзакций.
 
         Entity-тип узлов IBM AML датасета определяется правилом:
-        если from_bank == to_bank — оба узла 'individual' (внутрибанковский перевод),
-        иначе — 'account' (межбанковский, владелец неоднозначен).
+        если from_bank == to_bank - оба узла 'individual' (внутрибанковский перевод),
+        иначе - 'account' (межбанковский, владелец неоднозначен).
         """
         required = {'transaction_id', 'timestamp', 'sender_id', 'receiver_id', 'amount'}
         missing = required - set(df.columns)

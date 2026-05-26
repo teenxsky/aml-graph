@@ -1,7 +1,7 @@
 export interface StepTiming {
   step: string
   duration_ms: number
-  started_at: string // ISO datetime
+  started_at: string
   finished_at: string
 }
 
@@ -31,13 +31,9 @@ export interface AnalysisMetadata {
   algorithm_versions: Record<string, string>
 }
 
-/**
- * Track A: cluster labels from AGC or Louvain.
- * labels[i] corresponds to nodes[i] in the stream.
- */
 export interface ClusteringResult {
   method: 'agc' | 'louvain'
-  labels: number[] // (n,) int — index aligned to node_ids
+  labels: number[] // (n,) int - index aligned to node_ids
   /** Идентификаторы узлов в том же порядке что и labels */
   node_ids: string[]
   n_clusters: number
@@ -47,14 +43,9 @@ export interface ClusteringResult {
   metadata: AnalysisMetadata
 }
 
-/**
- * Track B: per-node risk scores from GNN or heuristic passthrough.
- * scores[i] corresponds to nodes[i] in the stream.
- * Consumed INDEPENDENTLY from ClusteringResult.
- */
 export interface NodeScoringResult {
   method: string
-  scores: number[] // (n,) ∈ [0, 1] — index aligned to streamed nodes
+  scores: number[] // (n,) \in [0, 1]
   metadata: Record<string, unknown>
 }
 

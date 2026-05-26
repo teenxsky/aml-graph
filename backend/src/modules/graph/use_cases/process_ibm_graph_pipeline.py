@@ -1,6 +1,6 @@
 from taskiq_pipelines import Pipeline
 
-from src.infrastructure.task_queue.broker import rabbitmq_broker
+from src.infrastructure.task_processing.broker import rabbitmq_broker
 from src.tasks import (
     build_graph_task,
     cluster_graph_task,
@@ -21,7 +21,7 @@ class ProcessIbmGraphPipelineUseCase:
     2. Выбор стратегии обработки (метод кластеризации, веса скоринга)
     3. Детектирование подозрительных паттернов
     4. Расчёт риск-скоринга и базовый layout
-    5. Кластеризация (AGC или Louvain — выбирается автоматически на шаге 2)
+    5. Кластеризация (AGC или Louvain - выбирается автоматически на шаге 2)
     6. Иерархический layout на основе кластеров
     7. Сохранение итогового графа
 

@@ -1,10 +1,3 @@
-"""Эндпоинт получения описаний категорий entity_type и behavioral_role.
-
-Используется фронтендом для:
-- Отображения подсказок в форме маппинга колонок CSV.
-- Tooltip-ов на легенде графа.
-"""
-
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -30,13 +23,13 @@ ENTITY_TYPES: list[CategoryDescription] = [
     CategoryDescription(
         code='individual',
         label_ru='Физлицо',
-        short_description='Физическое лицо — частный клиент банка.',
+        short_description='Физическое лицо - частный клиент банка.',
         color_hint='4fc3f7',
     ),
     CategoryDescription(
         code='business',
         label_ru='Юрлицо',
-        short_description='Юридическое лицо — компания, ИП, ООО.',
+        short_description='Юридическое лицо - компания, ИП, ООО.',
         color_hint='ffa726',
     ),
     CategoryDescription(
@@ -75,7 +68,7 @@ BEHAVIORAL_ROLES: list[CategoryDescription] = [
     CategoryDescription(
         code='isolated',
         label_ru='Одиночный',
-        short_description='Минимальная связность — 1-2 транзакции за период.',
+        short_description='Минимальная связность - 1-2 транзакции за период.',
         color_hint='9ca3af',
     ),
 ]

@@ -1,12 +1,3 @@
-"""Классификация и нормализация типов сущностей для построения графа.
-
-Содержит две функции:
-- normalize_entity_type: преобразование пользовательских строк
-  в канонические коды entity_type с поддержкой синонимов (рус/eng).
-- classify_ibm_entity_type: правило для IBM-парсера на основе
-  ToBank == FromBank.
-"""
-
 from __future__ import annotations
 
 from typing import Final
@@ -55,7 +46,7 @@ _ENTITY_TYPE_SYNONYMS: Final[dict[str, str]] = {
 class InvalidEntityTypeError(ValueError):
     """Бросается когда значение entity_type не входит в допустимые.
 
-    Содержит сам некорректный value и подсказку о допустимых вариантах —
+    Содержит сам некорректный value и подсказку о допустимых вариантах -
     эту информацию фронтенд показывает пользователю при ошибке загрузки CSV.
     """
 
@@ -105,7 +96,7 @@ def classify_ibm_entity_type(from_bank: str | None, to_bank: str | None) -> str:
     """Определить entity_type для узлов IBM AML датасета.
 
     Правило: если перевод происходит внутри одного банка (from_bank == to_bank),
-    оба узла классифицируются как individual. Если межбанковский — как account.
+    оба узла классифицируются как individual. Если межбанковский - как account.
 
     Args:
         from_bank: Идентификатор банка отправителя из IBM CSV.

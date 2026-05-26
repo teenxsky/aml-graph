@@ -20,13 +20,13 @@ export const JOB_STATUS_LABEL: Record<string, string> = {
   LAYOUT: 'Вычисление расположения...',
   CLUSTERING: 'Кластеризация узлов...',
   HIERARCHICAL_LAYOUT: 'Иерархическое расположение...',
-  SAVING: 'Сохранение результатов...',
+  SAVING: 'Сохранение результатов...'
 }
 
 const STAGE_LABEL: Record<string, string> = {
   connecting: 'Подключение к серверу...',
   streaming: 'Загрузка данных графа',
-  detectors: 'Анализ паттернов...',
+  detectors: 'Анализ паттернов...'
 }
 
 export default function StreamProgress({
@@ -34,7 +34,7 @@ export default function StreamProgress({
   jobStatus,
   nodeCount,
   edgeCount,
-  receivedNodes,
+  receivedNodes
 }: StreamProgressProps) {
   if (stage === 'idle' || stage === 'done' || stage === 'error') return null
 
@@ -66,7 +66,7 @@ export default function StreamProgress({
         borderRadius: 'var(--radius-5)',
         boxShadow: 'var(--shadow-4)',
         backdropFilter: 'blur(8px)',
-        minWidth: 300,
+        minWidth: 300
       }}
     >
       <Spinner size="1" style={{ flexShrink: 0 }} />
@@ -86,8 +86,7 @@ export default function StreamProgress({
           <>
             <Progress value={pct} size="1" color="blue" style={{ width: '100%' }} />
             <Text size="1" color="gray">
-              {receivedNodes?.toLocaleString('ru-RU')} / {nodeCount?.toLocaleString('ru-RU')}{' '}
-              узлов
+              {receivedNodes?.toLocaleString('ru-RU')} / {nodeCount?.toLocaleString('ru-RU')} узлов
               {edgeCount !== undefined && ` · ${edgeCount.toLocaleString('ru-RU')} рёбер`}
             </Text>
           </>
